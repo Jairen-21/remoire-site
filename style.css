@@ -344,7 +344,7 @@ svg {
    is soft and melts into the smoke rather than a hard cut. */
 .bottle-rise {
   position: absolute;
-  inset: -20% 0 0 0;   /* headroom above; clip only at the base */
+  inset: -20% -15% 0 -15%;   /* headroom above and at the sides (for the glow); clip only at the base */
 
   /* Transparent below the base line (5.2% of the bottle = 4.3% of
      this taller box), feathered just above it. */
@@ -355,8 +355,8 @@ svg {
 /* The bottle rises up out of the crater */
 .bottle-form {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 11.538%;               /* 15% of the bottle, inside the 130%-wide box above */
+  right: 11.538%;
   bottom: 0;
   height: calc(100% / 1.2);   /* the bottle's own box inside the headroom */
 
@@ -376,6 +376,48 @@ svg {
   bottom: -5%;
   background: radial-gradient(closest-side, rgba(231, 195, 128, 0.3), rgba(216, 169, 100, 0.1) 55%, rgba(216, 169, 100, 0));
   opacity: var(--joined);
+}
+
+/* Soft gold halo: a blurred, gold-toned copy of the bottle behind
+   it. The filter is fixed (drawn once); only opacity changes. */
+.bottle-halo {
+  position: absolute;
+  inset: 0;
+  opacity: calc(var(--lit) * (0.75 + var(--joined) * 0.25));
+  pointer-events: none;
+}
+
+.bottle-halo img {
+  filter: brightness(0) invert(1) sepia(1) saturate(3.2) hue-rotate(-8deg) brightness(0.95) blur(18px);
+  animation: halo-breathe 5s ease-in-out infinite;
+}
+
+@keyframes halo-breathe {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.85; }
+}
+
+/* A warm light that follows the cursor (or finger) across the
+   bottle, cut to the bottle's own shape. */
+.bottle-light {
+  --lx: 66%;
+  --ly: 34%;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle calc(var(--bottle-width) * 0.45) at var(--lx) var(--ly),
+    rgba(255, 240, 212, 0.55) 0%,
+    rgba(231, 195, 128, 0.22) 35%,
+    rgba(231, 195, 128, 0) 100%);
+  mix-blend-mode: screen;
+  opacity: calc(var(--lit) * 0.95);
+  -webkit-mask-image: url("assets/Moon%20transparent.png");
+          mask-image: url("assets/Moon%20transparent.png");
+  -webkit-mask-size: 100% 100%;
+          mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
 }
 
 .bottle img {
@@ -504,13 +546,199 @@ svg {
   margin-right: calc(var(--tracking-wordmark) * -1);   /* true centre */
 
   color: var(--gold-500);
-  background: linear-gradient(to bottom, var(--gold-wordmark-light) 15%, var(--gold-500) 75%);
+  /* Two layers: a band of light that sweeps across once, over the
+     wordmark's metallic gold */
+  background:
+    linear-gradient(100deg, rgba(255, 243, 214, 0) 38%, rgba(255, 243, 214, 0.95) 50%, rgba(255, 243, 214, 0) 62%),
+    linear-gradient(to bottom, var(--gold-wordmark-light) 15%, var(--gold-500) 75%);
+  background-size: 260% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
   -webkit-background-clip: text;
           background-clip: text;
   -webkit-text-fill-color: transparent;
 
   opacity: var(--soon);
   transform: translateY(calc((1 - var(--soon)) * 12px * var(--motion)));
+}
+
+
+/* ---- Gold catching the light ---- */
+
+@keyframes sheen {
+  from { background-position: 100% 0, 0 0; }
+  to   { background-position: 0% 0, 0 0; }
+}
+
+.moon-soon.is-sheen {
+  animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+/* The waiting-list lines get the same light */
+.label-email,
+.label-name .ln-1,
+.label-name .ln-2 {
+  color: var(--gold-wordmark-light);
+  background:
+    linear-gradient(100deg, rgba(255, 246, 225, 0) 38%, rgba(255, 246, 225, 1) 50%, rgba(255, 246, 225, 0) 62%),
+    linear-gradient(var(--gold-wordmark-light), var(--gold-wordmark-light));
+  background-size: 260% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+
+.waitlist-label.is-sheen .label-email {
+  animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 0.2s both;
+}
+
+.waitlist.is-name .label-name .ln-1 {
+  animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 1.4s both;
+}
+
+.waitlist.is-name .label-name .ln-2 {
+  animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 2.5s both;
+}
+
+
+/* =========================================
+   REFINED ARRIVAL
+   A fine gold line under the R fills as the landscape,
+   bottle and fonts load, then fades away.
+========================================= */
+
+.load-line {
+  position: absolute;
+  top: calc(100% + clamp(26px, 4.5vh, 44px));
+  left: 50%;
+  width: 120px;
+  margin-left: -60px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(195, 150, 82, 0.16);
+  opacity: calc(1 - var(--word));
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+}
+
+.js .load-line {
+  animation: row-in 1.2s ease 0.8s both;
+}
+
+.load-line-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(216, 169, 100, 0.4), var(--gold-wordmark-light));
+  transform: scaleX(var(--load, 0));
+  transform-origin: left center;
+  transition: transform 0.8s cubic-bezier(0.33, 0, 0.2, 1);
+}
+
+.is-loaded .load-line {
+  opacity: 0;
+  transition-delay: 0.6s;
+}
+
+.no-js .load-line {
+  display: none;
+}
+
+
+/* =========================================
+   CUSTOM CURSOR (desktop, precise pointers only)
+   A gold ring that follows with a soft delay and
+   opens up over anything you can click.
+========================================= */
+
+.cursor {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .has-cursor,
+  .has-cursor * {
+    cursor: none !important;
+  }
+
+  .has-cursor input[type="email"],
+  .has-cursor input[type="text"] {
+    cursor: text !important;
+  }
+
+  .has-cursor .sign-pad {
+    cursor: crosshair !important;
+  }
+
+  .has-cursor .cursor {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 100;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+
+  .cursor.is-hidden {
+    opacity: 0;
+  }
+
+  .cursor-ring,
+  .cursor-dot {
+    position: fixed;
+    left: 0;
+    top: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .cursor-ring {
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    border: 1px solid rgba(231, 195, 128, 0.6);
+    transition: width 0.45s ease, height 0.45s ease, margin 0.45s ease, border-color 0.45s ease, background-color 0.45s ease;
+  }
+
+  .cursor-dot {
+    width: 4px;
+    height: 4px;
+    margin: -2px 0 0 -2px;
+    background: var(--gold-wordmark-light);
+    transition: opacity 0.3s ease;
+  }
+
+  /* Over something clickable, the ring opens and the dot steps back */
+  .cursor.is-hover .cursor-ring {
+    width: 58px;
+    height: 58px;
+    margin: -29px 0 0 -29px;
+    border-color: rgba(231, 195, 128, 0.9);
+    background-color: rgba(231, 195, 128, 0.06);
+  }
+
+  .cursor.is-hover .cursor-dot {
+    opacity: 0;
+  }
+
+  /* Over text fields and the signing pad, it steps aside */
+  .cursor.is-text .cursor-ring {
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-color: rgba(231, 195, 128, 0.35);
+  }
+
+  .cursor.is-down .cursor-ring {
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+  }
 }
 
 
@@ -1493,6 +1721,14 @@ svg {
 
   .engrave span {
     animation-name: engrave-still;
+  }
+
+  .bottle-halo img,
+  .moon-soon.is-sheen,
+  .waitlist-label.is-sheen .label-email,
+  .waitlist.is-name .label-name .ln-1,
+  .waitlist.is-name .label-name .ln-2 {
+    animation: none;
   }
 
   .bottle-name .nl-glint,

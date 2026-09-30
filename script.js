@@ -344,6 +344,7 @@
   ========================================= */
 
   const values = {};    // last written values — skip unchanged writes
+  let bottleLight = null;   // set up further down, once the bottle exists
   let listHidden = null;
 
   function write(name, value) {
@@ -351,6 +352,15 @@
     if (values[name] === v) return;
     values[name] = v;
     stage.style.setProperty(`--${name}`, v);
+  }
+
+  const soonEl = document.querySelector(".moon-soon");
+  const labelEl = document.querySelector(".waitlist-label");
+
+  function sheenOn(el, v) {
+    if (!el) return;
+    if (v >= 0.98) el.classList.add("is-sheen");
+    else if (v < 0.3) el.classList.remove("is-sheen");
   }
 
   function render(progress) {
@@ -372,6 +382,13 @@
     write("cue", 1 - ease(range(progress, SCROLL_CUE_FADE)));
 
     stage.classList.toggle("is-cue-hidden", values.cue === 0);
+
+    // Gold catching the light, each time the text arrives
+    sheenOn(soonEl, values.soon);
+    sheenOn(labelEl, values.list);
+
+    // The light on the bottle only runs once the bottle is lit
+    if (values.lit > 0.02 && bottleLight) bottleLight.wake();
 
     // Waiting list can't be focused or clicked until visible
     const hidden = values.list === 0;
@@ -493,12 +510,119 @@
   })();
 
 
+  /* =========================================
+     LIGHT ON THE BOTTLE
+     The cursor (or finger) is a warm light moving across
+     the bottle. Left alone, the light drifts slowly by
+     itself, so it also lives on phones.
+  ========================================= */
+
+  bottleLight = (() => {
+    const bottleEl = document.querySelector(".bottle");
+    const lightEl = document.querySelector(".bottle-light");
+    if (!bottleEl || !lightEl) return { wake() {}, point() {} };
+
+    let tx = 66, ty = 34;     // target, % of the bottle
+    let cx = 66, cy = 34;     // current
+    let lastPoint = -1e9;
+    let running = false;
+
+    function frame(now) {
+      if ((values.lit || 0) <= 0.02 || document.hidden) { running = false; return; }
+
+      const idle = now - lastPoint > 2500;
+      if (idle && !reducedMotion.matches) {
+        const t = now / 1000;
+        tx = 60 + 18 * Math.cos(t * 0.33);
+        ty = 38 + 16 * Math.sin(t * 0.47);
+      }
+      cx += (tx - cx) * (idle ? 0.03 : 0.1);
+      cy += (ty - cy) * (idle ? 0.03 : 0.1);
+      lightEl.style.setProperty("--lx", `${cx.toFixed(2)}%`);
+      lightEl.style.setProperty("--ly", `${cy.toFixed(2)}%`);
+      requestAnimationFrame(frame);
+    }
+
+    function wake() {
+      if (running) return;
+      running = true;
+      requestAnimationFrame(frame);
+    }
+
+    function point(clientX, clientY) {
+      const r = bottleEl.getBoundingClientRect();
+      if (!r.width) return;
+      tx = clamp(((clientX - r.left) / r.width) * 100, -25, 125);
+      ty = clamp(((clientY - r.top) / r.height) * 100, -25, 125);
+      lastPoint = performance.now();
+    }
+
+    return { wake, point };
+  })();
+
+
+  /* =========================================
+     CUSTOM CURSOR
+     Desktop with a precise mouse only. A gold ring follows
+     with a soft delay; the dot sits exactly on the pointer.
+  ========================================= */
+
+  (() => {
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const cursor = document.querySelector(".cursor");
+    if (!cursor || !fine.matches) return;
+
+    const ring = cursor.querySelector(".cursor-ring");
+    const dot = cursor.querySelector(".cursor-dot");
+    document.documentElement.classList.add("has-cursor");
+    cursor.classList.add("is-hidden");
+
+    let mx = -100, my = -100;   // mouse
+    let rx = -100, ry = -100;   // ring
+    let running = false;
+
+    function frame() {
+      const k = reducedMotion.matches ? 1 : 0.18;
+      rx += (mx - rx) * k;
+      ry += (my - ry) * k;
+      ring.style.transform = `translate3d(${rx.toFixed(1)}px, ${ry.toFixed(1)}px, 0)`;
+      if (Math.abs(mx - rx) > 0.1 || Math.abs(my - ry) > 0.1) requestAnimationFrame(frame);
+      else running = false;
+    }
+
+    window.addEventListener("mousemove", (e) => {
+      mx = e.clientX;
+      my = e.clientY;
+      dot.style.transform = `translate3d(${mx}px, ${my}px, 0)`;
+      if (cursor.classList.contains("is-hidden")) {
+        cursor.classList.remove("is-hidden");
+        rx = mx; ry = my;
+      }
+      if (!running) { running = true; requestAnimationFrame(frame); }
+    }, { passive: true });
+
+    document.addEventListener("mouseover", (e) => {
+      const t = e.target;
+      const clickable = t.closest && t.closest("a, button, [role='button'], label");
+      const text = t.closest && t.closest("input, textarea, .sign-pad");
+      cursor.classList.toggle("is-hover", !!clickable && !text);
+      cursor.classList.toggle("is-text", !!text);
+    });
+
+    document.addEventListener("mousedown", () => cursor.classList.add("is-down"));
+    document.addEventListener("mouseup", () => cursor.classList.remove("is-down"));
+    document.addEventListener("mouseleave", () => cursor.classList.add("is-hidden"));
+    window.addEventListener("blur", () => cursor.classList.add("is-hidden"));
+  })();
+
+
   /* ---- Pointer: depth and smoke ---- */
 
   function onPointer(clientX, clientY) {
     const w = window.innerWidth, h = window.innerHeight;
     if (!depth.usesTilt()) depth.set((clientX / w) * 2 - 1, (clientY / h) * 2 - 1);
     smoke.setPointer(clientX, clientY);
+    if (bottleLight) bottleLight.point(clientX, clientY);
   }
 
   window.addEventListener("pointermove", (e) => onPointer(e.clientX, e.clientY), { passive: true });
@@ -524,6 +648,33 @@
     arrived = true;
     requestAnimationFrame(() => document.documentElement.classList.add("is-ready"));
   }
+
+  // Refined arrival: the gold line under the R fills as the
+  // landscape, bottle, wordmark and fonts finish loading.
+  (() => {
+    const root = document.documentElement;
+    const jobs = [
+      "assets/moon-background.webp",
+      "assets/Moon%20transparent.png",
+      "assets/remoire-wordmark.svg",
+    ].map((src) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = img.onerror = resolve;
+      img.src = src;
+    }));
+    if (document.fonts && document.fonts.ready) jobs.push(document.fonts.ready.catch(() => {}));
+
+    let done = 0;
+    const total = jobs.length;
+    root.style.setProperty("--load", "0.06");
+    jobs.forEach((job) => job.then(() => {
+      done += 1;
+      root.style.setProperty("--load", (done / total).toFixed(3));
+    }));
+    const finish = () => root.classList.add("is-loaded");
+    Promise.all(jobs).then(() => setTimeout(finish, 500));
+    setTimeout(finish, 12000);   // never hang on a slow connection
+  })();
 
   if (emblem && emblem.decode) {
     emblem.decode().then(arrive, arrive);
