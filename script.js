@@ -52,7 +52,7 @@
   const KLAVIYO_PUBLIC_KEY = "";   // Settings → API keys → Public API key / Site ID (6 characters)
   const KLAVIYO_LIST_ID = "";      // Your waiting list → Settings → List ID (6 characters)
   const KLAVIYO_REVISION = "2026-07-15";
-  const SIGNUP_SOURCE = "remoire.co — THE MOON coming soon";
+  const SIGNUP_SOURCE = "remoire.co — coming soon";
 
   /*
     How softly the scene follows the scroll, in seconds.
@@ -899,8 +899,8 @@
     form.classList.add("is-done");
     if (nameInput) { nameInput.value = ""; nameInput.tabIndex = -1; nameInput.blur(); }
     if (skipBtn) skipBtn.tabIndex = -1;
-    status.textContent = name ? `${THANKS} Your name is on the moon.`
-                       : signature ? `${THANKS} Your signature is on the moon.`
+    status.textContent = name ? `${THANKS} Your name is engraved on the bottle.`
+                       : signature ? `${THANKS} Your signature is engraved on the bottle.`
                        : THANKS;
     lightTheBottle();
     const delay = reducedMotion.matches ? 300 : NAME_DELAY;
@@ -1271,7 +1271,7 @@
       const blob = await drawMoonImage();
       if (shareUrl) URL.revokeObjectURL(shareUrl);
       shareUrl = URL.createObjectURL(blob);
-      shareFile = new File([blob], "remoire-the-moon.jpg", { type: "image/jpeg" });
+      shareFile = new File([blob], "remoire.jpg", { type: "image/jpeg" });
       shareImg.src = shareUrl;
 
       const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [shareFile] }));
@@ -1301,7 +1301,7 @@
       if (!shareUrl) return;
       const a = document.createElement("a");
       a.href = shareUrl;
-      a.download = "remoire-the-moon.jpg";
+      a.download = "remoire.jpg";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1312,7 +1312,7 @@
     shareShareBtn.addEventListener("click", async () => {
       if (!shareFile) return;
       try {
-        await navigator.share({ files: [shareFile], title: "REMOIRE — THE MOON" });
+        await navigator.share({ files: [shareFile], title: "REMOIRE" });
       } catch (e) { /* closed the share sheet */ }
     });
   }

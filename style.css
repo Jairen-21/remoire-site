@@ -90,7 +90,7 @@
 
   /* Scroll length of the whole sequence.
      Long on purpose: every beat gets room to breathe. */
-  --scene-length: 1600vh;
+  --scene-length: 1000vh;
 }
 
 
@@ -1368,7 +1368,7 @@ svg {
 @media (max-width: 760px), (max-aspect-ratio: 4/5) {
 
   :root {
-    --scene-length: 1300vh;
+    --scene-length: 850vh;
   }
 
   .lunar-background {
@@ -1462,7 +1462,7 @@ svg {
 @media (prefers-reduced-motion: reduce) {
 
   :root {
-    --scene-length: 800vh;
+    --scene-length: 550vh;
   }
 
   .brand-sticky {
