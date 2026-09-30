@@ -128,7 +128,7 @@
     const back = document.querySelector(".smoke-back");
     const front = document.querySelector(".smoke-front");
     const bottleEl = document.querySelector(".bottle");
-    const none = { setLevel() {}, resize() {}, setPointer() {}, puff() {}, sparkle() {} };
+    const none = { setLevel() {}, resize() {}, setPointer() {}, puff() {}, sparkle() {}, setMapper() {}, gather() {}, nib() {}, strike() {} };
     if (!back || !front || !bottleEl || !back.getContext) return none;
 
     const ctxBack = back.getContext("2d");
@@ -154,6 +154,9 @@
     let level = 0;
     let particles = [];
     let fx = [];                  // one-off effects: dust puffs and gold sparks
+    let bfx = [];                 // effects pinned to the bottle (engraving)
+    let nibState = null;          // the etching point, in bottle units
+    let mapper = null;            // () => the bottle drawing's box on screen
     let running = false;
     let last = 0;
     let idleSince = 0;
@@ -287,6 +290,16 @@
         f.size += f.grow * dt;
       }
       fx = fx.filter((f) => f.age < f.life);
+
+      for (const b of bfx) {
+        b.age += dt;
+        if (b.kind === "chip") {
+          b.vy += 900 * dt;
+          b.ox += b.vx * dt;
+          b.oy += b.vy * dt;
+        }
+      }
+      bfx = bfx.filter((b) => b.age < b.life);
     }
 
     function paint(ctx, isFront) {
@@ -322,8 +335,53 @@
         ctx.globalCompositeOperation = f.additive ? "lighter" : "source-over";
         ctx.drawImage(f.sprite, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
       }
+      if (mapper && (bfx.length || nibState)) paintBottleFx(ctx);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
+    }
+
+    // Engraving effects live in the bottle's own units (900 × 1128),
+    // so they stay locked to the letters through scroll and parallax.
+    function paintBottleFx(ctx) {
+      const box = mapper();
+      if (!box || !box.width) return;
+      const me = fxCanvas.getBoundingClientRect();
+      const kx = box.width / 900, ky = box.height / 1128;
+      const X = (x) => box.left - me.left + x * kx;
+      const Y = (y) => box.top - me.top + y * ky;
+      ctx.globalCompositeOperation = "lighter";
+      for (const b of bfx) {
+        if (b.kind === "dust") {
+          if (b.age < b.delay) continue;
+          const t = Math.min(1, (b.age - b.delay) / b.dur);
+          const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          const u = 1 - e;
+          const x = u * u * b.sx + 2 * u * e * b.cx + e * e * b.tx;
+          const y = u * u * b.sy + 2 * u * e * b.cy + e * e * b.ty;
+          const out = Math.max(0, Math.min(1, (b.age - b.fadeAt) / 0.5));
+          const tw = 0.7 + 0.3 * Math.sin(b.phase + b.age * 20);
+          const a = Math.min(1, t * 4) * (1 - out) * tw * 0.9;
+          if (a <= 0.01) continue;
+          ctx.globalAlpha = a;
+          const r = b.size * (t < 1 ? 1 : 0.8);
+          ctx.drawImage(spark, X(x) - r / 2, Y(y) - r / 2, r, r);
+        } else if (b.kind === "flash") {
+          const t = b.age / b.life;
+          const r = 4 + (1 - Math.pow(1 - t, 3)) * 22;
+          ctx.globalAlpha = (1 - t) * 0.9;
+          ctx.drawImage(spark, X(b.x) - r / 2, Y(b.y) - r / 2, r, r);
+        } else if (b.kind === "chip") {
+          const t = b.age / b.life;
+          ctx.globalAlpha = (1 - t) * 0.95;
+          ctx.drawImage(spark, X(b.x) + b.ox - 1.5, Y(b.y) + b.oy - 1.5, 3, 3);
+        }
+      }
+      if (nibState && nibState.a > 0.01) {
+        const x = X(nibState.x), y = Y(nibState.y);
+        ctx.globalAlpha = nibState.a;
+        ctx.drawImage(spark, x - 8, y - 8, 16, 16);
+        ctx.drawImage(spark, x - 2.5, y - 2.5, 5, 5);
+      }
     }
 
     function draw() {
@@ -339,7 +397,7 @@
       draw();
 
       // Stop entirely once the smoke is gone
-      if (level === 0 && particles.length === 0 && fx.length === 0) {
+      if (level === 0 && particles.length === 0 && fx.length === 0 && bfx.length === 0 && !nibState) {
         running = false;
         return;
       }
@@ -450,10 +508,52 @@
       start();
     }
 
+    function setMapper(fn) { mapper = fn; }
+
+    // Moon dust drifts up out of the crater and settles on the given
+    // points (bottle units). Each point: { x, y, group, fadeAt (ms) }.
+    function gather(points, arriveBy = 2400) {
+      if (reducedMotion.matches) return;
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      for (const p of points) {
+        const sx = 450 + rnd(-440, 440);
+        const sy = rnd(1150, 1320);
+        const dur = rnd(1300, 1650);
+        const delay = Math.max(0, Math.min(arriveBy - dur, rnd(0, 600) + (p.group || 0) * 50));
+        bfx.push({
+          kind: "dust", sx, sy, tx: p.x, ty: p.y,
+          cx: (sx + p.x) / 2 + rnd(-140, 140), cy: Math.min(sy, p.y) - rnd(20, 120),
+          delay: delay / 1000, dur: dur / 1000,
+          fadeAt: (p.fadeAt + rnd(-60, 120)) / 1000,
+          life: (p.fadeAt + 700) / 1000,
+          age: 0, size: rnd(2.2, 3.8), phase: Math.random() * 6.28,
+        });
+      }
+      start();
+    }
+
+    // The etching point: { x, y, a } in bottle units, or null
+    function nib(state) {
+      nibState = state;
+      if (state) start();
+    }
+
+    // A chisel strike: a small flash and a few chips of glass
+    function strike(x, y) {
+      if (reducedMotion.matches) return;
+      bfx.push({ kind: "flash", x, y, age: 0, life: 0.22 });
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI * (0.05 + Math.random() * 0.9);
+        const v = 70 + Math.random() * 110;
+        bfx.push({ kind: "chip", x, y, ox: 0, oy: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, age: 0, life: 0.35 + Math.random() * 0.3 });
+      }
+      start();
+    }
+
     window.addEventListener("resize", resize);
     resize();
 
-    return { setLevel, resize, setPointer, puff, sparkle };
+    return { setLevel, resize, setPointer, puff, sparkle, setMapper, gather, nib, strike };
   })();
 
 
@@ -833,6 +933,7 @@
 
     const CX = 450, HALF = 407;   // sphere centre and half-width at this height
     let at = (L - total) / 2;
+    const woven = !isStatic && !reducedMotion.matches;
 
     chars.forEach((ch, i) => {
       const mid = at + widths[i] / 2;
@@ -843,7 +944,8 @@
       const q = path.getPointAtLength(Math.min(L, mid + 1));
       const angle = Math.atan2(q.y - p.y, q.x - p.x) * 180 / Math.PI;
       const squeeze = Math.sqrt(Math.max(0.2, 1 - Math.pow((p.x - CX) / HALF, 2)));
-      letters.push({ ch, x: p.x, y: p.y, angle, squeeze, size });
+      letters.push({ ch, x: p.x, y: p.y, angle, squeeze, size, w: widths[i] });
+      if (woven) return;
 
       const g = document.createElementNS(ns, "g");
       g.setAttribute("transform", `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${angle.toFixed(2)}) scale(${squeeze.toFixed(3)} 1)`);
@@ -863,17 +965,208 @@
     });
 
     engraving = { type: "name", letters };
-
-    // Gold dust lifts off each letter as it is cut
-    if (!isStatic) {
-      letters.forEach((L, i) => {
-        setTimeout(() => {
-          const p = bottleToScreen(L.x, L.y - L.size * 0.3);
-          if (p) smoke.sparkle(p.x, p.y, 10);
-        }, i * NAME_STAGGER + 450);
-      });
-    }
+    if (woven) weaveName(svg, group, letters);
   }
+
+  /* ---- The engraving: dust gathers, the point cuts, the chisel sets ----
+     Moon dust rises from the crater and settles into the shape of the
+     name. A bright etching point then cuts each dusty letter, and a
+     single chisel strike sets it into the glass. */
+
+  const WEAVE = { gather: 2400, per: 360, gap: 160, dust: 55 };
+  let weaveRun = 0;
+
+  function frames(dur, fn, run) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const tick = (now) => {
+        if (run !== weaveRun) return resolve(false);
+        const t = Math.min(1, (now - start) / dur);
+        fn(t);
+        if (t < 1) requestAnimationFrame(tick); else resolve(true);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+  const pause = (ms, run) => frames(ms, () => {}, run);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // A point in a letter's own space → bottle units
+  function letterPoint(l, lx, ly) {
+    const a = l.angle * Math.PI / 180, x = lx * l.squeeze;
+    return { x: l.x + x * Math.cos(a) - ly * Math.sin(a), y: l.y + x * Math.sin(a) + ly * Math.cos(a) };
+  }
+
+  // Random points inside a letter's shape, for the dust to settle on
+  function sampleLetter(l, count) {
+    const k = 4;
+    const c = document.createElement("canvas");
+    const W = Math.ceil(l.w * k + 24), H = Math.ceil(l.size * 1.35 * k);
+    c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    g.font = `500 ${l.size * k}px "Cormorant Garamond", Garamond, serif`;
+    g.textAlign = "center";
+    g.fillStyle = "#fff";
+    g.fillText(l.ch, W / 2, l.size * k);
+    const data = g.getImageData(0, 0, W, H).data;
+    const out = [];
+    for (let tries = 0; out.length < count && tries < 15000; tries++) {
+      const px = (Math.random() * W) | 0, py = (Math.random() * H) | 0;
+      if (data[(py * W + px) * 4 + 3] > 128) out.push(letterPoint(l, (px - W / 2) / k, (py - l.size * k) / k));
+    }
+    return out;
+  }
+
+  function svgEl(name, attrs, parent) {
+    const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (const key in attrs) n.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
+  function clearWeave(svg) {
+    weaveRun++;
+    smoke.nib(null);
+    svg.querySelectorAll(".weave-clip").forEach((n) => n.remove());
+  }
+
+  // Shake a letter and flash its glint: the chisel lands
+  function setWithChisel(at, shakeEl, hotEl, run) {
+    smoke.strike(at.x, at.y);
+    const dx = rnd(-1.8, 1.8), dy = rnd(-1, 1);
+    hotEl.setAttribute("opacity", "0.9");
+    frames(700, (t) => {
+      const e = 1 - ease(Math.min(1, t * 4.5));
+      shakeEl.setAttribute("transform", `translate(${(dx * e).toFixed(2)} ${(dy * e).toFixed(2)})`);
+      hotEl.setAttribute("opacity", (0.9 * (1 - ease(t))).toFixed(3));
+    }, run);
+  }
+
+  async function weaveName(svg, group, letters) {
+    clearWeave(svg);
+    const run = weaveRun;
+    const defs = svg.querySelector("defs");
+    const { gather, per, gap } = WEAVE;
+
+    const rows = letters.map((l, i) => {
+      const id = `weave-clip-${run}-${i}`;
+      const cp = svgEl("clipPath", { id, class: "weave-clip" }, defs);
+      const rect = svgEl("rect", { x: -l.w / 2 - 2, y: -l.size, width: 0, height: l.size * 1.4 }, cp);
+      const g = svgEl("g", { transform: `translate(${l.x.toFixed(1)} ${l.y.toFixed(1)}) rotate(${l.angle.toFixed(2)}) scale(${l.squeeze.toFixed(3)} 1)` }, group);
+      const shakeEl = svgEl("g", {}, g);
+      const cutG = svgEl("g", { "clip-path": `url(#${id})` }, shakeEl);
+      const make = (cls, filter, parent, opacity) => {
+        const t = svgEl("text", { class: cls, "font-size": l.size.toFixed(1), "letter-spacing": "0", filter: `url(#${filter})`, opacity }, parent);
+        t.textContent = l.ch;
+        return t;
+      };
+      make("weave-cut", "name-cut", cutG, 1);
+      const glow = make("weave-glow", "name-glint", cutG, 0.75);
+      const hot = make("weave-glow", "name-glint", shakeEl, 0);
+      return { l, rect, glow, hot, shakeEl };
+    });
+
+    // 1. The dust gathers
+    const points = [];
+    letters.forEach((l, i) => {
+      const fadeAt = gather + i * (per + gap) + per * 0.4;
+      sampleLetter(l, WEAVE.dust).forEach((p) => points.push({ x: p.x, y: p.y, group: i, fadeAt }));
+    });
+    smoke.gather(points, gather);
+    if (!(await pause(gather, run))) return;
+
+    // 2. The point cuts each letter; 3. the chisel sets it
+    const nib = { x: 0, y: 0, a: 0 };
+    smoke.nib(nib);
+    for (let i = 0; i < rows.length; i++) {
+      const { l, rect, glow, hot, shakeEl } = rows[i];
+      let n = 0;
+      const ok = await frames(per, (t) => {
+        const w = l.w + 4;
+        rect.setAttribute("width", (t * w).toFixed(2));
+        const p = letterPoint(l, -l.w / 2 - 2 + t * w, -l.size * 0.36 + Math.sin(t * 40) * l.size * 0.34);
+        nib.x = p.x; nib.y = p.y; nib.a = 1;
+        if (++n % 3 === 0) {
+          const s = bottleToScreen(p.x, p.y);
+          if (s) smoke.sparkle(s.x, s.y, 1);
+        }
+      }, run);
+      if (!ok) return;
+      setWithChisel(letterPoint(l, 0, -l.size * 0.45), shakeEl, hot, run);
+      frames(700, (t) => glow.setAttribute("opacity", (0.75 * (1 - t)).toFixed(3)), run);
+      if (i < rows.length - 1) {
+        const next = rows[i + 1].l;
+        const from = letterPoint(l, l.w / 2, -l.size * 0.36);
+        const to = letterPoint(next, -next.w / 2, -next.size * 0.36);
+        if (!(await frames(gap, (t) => { nib.x = from.x + (to.x - from.x) * t; nib.y = from.y + (to.y - from.y) * t; nib.a = 0.3; }, run))) return;
+      }
+    }
+    await frames(400, (t) => { nib.a = 1 - t; }, run);
+    if (run === weaveRun) smoke.nib(null);
+  }
+
+  // The same, for a drawn signature: the dust settles along the strokes,
+  // the point follows the pen, and the chisel sets the end of each stroke.
+  async function weaveSignature(svg, strokesEls, width) {
+    clearWeave(svg);
+    const run = weaveRun;
+    const { gather } = WEAVE;
+
+    let at = gather;
+    const plan = strokesEls.map(({ cut, glint }, i) => {
+      let len = 0;
+      try { len = cut.getTotalLength(); } catch (e) {}
+      const dur = clamp(250 + len * 2.2, 350, 1400);
+      const item = { cut, glint, len, dur, start: at, i };
+      at += dur + 120;
+      return item;
+    });
+
+    const points = [];
+    plan.forEach(({ cut, len, dur, start, i }) => {
+      if (!len) return;
+      const n = clamp(Math.round(len / 5), 6, 70);
+      for (let k = 0; k < n; k++) {
+        const u = Math.random();
+        const p = cut.getPointAtLength(len * u);
+        points.push({ x: p.x + rnd(-1, 1) * width * 0.4, y: p.y + rnd(-1, 1) * width * 0.4, group: i, fadeAt: start + ease(u) * dur });
+      }
+    });
+    plan.forEach(({ cut, glint }) => {
+      for (const el of [cut, glint]) { el.style.animation = "none"; el.style.strokeDashoffset = "1"; }
+      glint.style.opacity = "0.8";
+    });
+    smoke.gather(points, gather);
+    if (!(await pause(gather, run))) return;
+
+    const nib = { x: 0, y: 0, a: 0 };
+    smoke.nib(nib);
+    for (const { cut, glint, len, dur } of plan) {
+      let n = 0;
+      const ok = await frames(dur, (t) => {
+        const e = ease(t);
+        cut.style.strokeDashoffset = glint.style.strokeDashoffset = (1 - e).toFixed(4);
+        if (!len) return;
+        const p = cut.getPointAtLength(len * e);
+        nib.x = p.x; nib.y = p.y; nib.a = 1;
+        if (++n % 3 === 0) {
+          const s = bottleToScreen(p.x, p.y);
+          if (s) smoke.sparkle(s.x, s.y, 1);
+        }
+      }, run);
+      if (!ok) return;
+      if (len) smoke.strike(nib.x, nib.y);
+      frames(800, (t) => { glint.style.opacity = (0.8 * (1 - t)).toFixed(3); }, run);
+      if (!(await pause(120, run))) return;
+    }
+    await frames(400, (t) => { nib.a = 1 - t; }, run);
+    if (run === weaveRun) smoke.nib(null);
+  }
+
+  smoke.setMapper(() => {
+    const svg = document.querySelector(".bottle-name");
+    return svg ? svg.getBoundingClientRect() : null;
+  });
 
   // Bottle drawing units (900 × 1128) → a point on screen
   function bottleToScreen(x, y) {
@@ -1040,10 +1333,13 @@
     const width = clamp(2.2 * k, 4, 7);
     const paths = [];
     const cutEls = [];
+    const pairs = [];
     let delay = 0;
     lines.forEach((s) => {
       const d = pathFor(s);
       paths.push(d);
+      const pair = {};
+      pairs.push(pair);
       for (const cls of ["sig-glint", "sig-cut"]) {
         const p = document.createElementNS(ns, "path");
         p.setAttribute("d", d);
@@ -1053,12 +1349,18 @@
         p.setAttribute("filter", cls === "sig-cut" ? "url(#name-cut)" : "url(#name-glint)");
         p.style.animationDelay = `${delay}ms, ${delay}ms`;
         group.appendChild(p);
+        pair[cls === "sig-cut" ? "cut" : "glint"] = p;
         if (cls === "sig-cut") cutEls.push({ el: p, delay });
       }
       delay += 380;
     });
 
     engraving = { type: "signature", paths, width };
+
+    if (!isStatic && !reducedMotion.matches) {
+      weaveSignature(svg, pairs, width);
+      return;
+    }
 
     // Gold dust follows the pen as the signature draws itself
     if (!isStatic) {

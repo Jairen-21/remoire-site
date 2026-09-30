@@ -1182,6 +1182,10 @@ svg {
   text-anchor: middle;
 }
 
+/* The woven engraving (dust, etching point, chisel): driven by script */
+.bottle-name .weave-cut  { fill: #7a5b2e; }
+.bottle-name .weave-glow { fill: #fff3d6; }
+
 /* Settled engraving: dim gold, cut into the surface */
 .bottle-name .nl-cut {
   fill: #7a5b2e;
