@@ -49,8 +49,8 @@
      the whole sequence plays, but nothing is saved.
   ========================================= */
 
-  const KLAVIYO_PUBLIC_KEY = "";   // Settings → API keys → Public API key / Site ID (6 characters)
-  const KLAVIYO_LIST_ID = "";      // Your waiting list → Settings → List ID (6 characters)
+  const KLAVIYO_PUBLIC_KEY = "WtPvNR";   // Settings → API keys → Public API key / Site ID (6 characters)
+  const KLAVIYO_LIST_ID = "TZZPtN";      // Your waiting list → Settings → List ID (6 characters)
   const KLAVIYO_REVISION = "2026-07-15";
   const SIGNUP_SOURCE = "remoire.co — coming soon";
 
