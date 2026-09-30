@@ -441,6 +441,11 @@ svg {
   transform: translate3d(calc(var(--px) * -13px), calc(var(--py) * -7px), 0);
 }
 
+.smoke-fx {
+  z-index: 4;   /* dust puffs and gold sparks, above the smoke */
+  transform: translate3d(calc(var(--px) * -22px), calc(var(--py) * -11px), 0);
+}
+
 .smoke-front {
   z-index: 4;   /* same layer as the bottle, but later in the page = in front */
   transform: translate3d(calc(var(--px) * -22px), calc(var(--py) * -11px), 0);
@@ -518,6 +523,26 @@ svg {
 
   opacity: var(--soon);
   transform: translateY(calc((1 - var(--soon)) * 12px * var(--motion)));
+}
+
+
+/* ---- Shooting stars (placed and moved by script.js) ---- */
+
+.shooting-star {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 170px;
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 1px;
+  /* The head is at the left end, where it travels */
+  background: linear-gradient(to left, rgba(255, 243, 214, 0), rgba(240, 210, 160, 0.5) 70%, rgba(255, 248, 232, 1));
+  box-shadow: 0 0 6px rgba(231, 195, 128, 0.7);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
 }
 
 

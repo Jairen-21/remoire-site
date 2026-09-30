@@ -128,11 +128,19 @@
     const back = document.querySelector(".smoke-back");
     const front = document.querySelector(".smoke-front");
     const bottleEl = document.querySelector(".bottle");
-    const none = { setLevel() {}, resize() {}, setPointer() {} };
+    const none = { setLevel() {}, resize() {}, setPointer() {}, puff() {}, sparkle() {} };
     if (!back || !front || !bottleEl || !back.getContext) return none;
 
     const ctxBack = back.getContext("2d");
     const ctxFront = front.getContext("2d");
+
+    // Dust and sparks get their own full-sharpness layer
+    const fxCanvas = document.createElement("canvas");
+    fxCanvas.className = "smoke smoke-fx";
+    fxCanvas.setAttribute("aria-hidden", "true");
+    front.after(fxCanvas);
+    const ctxFx = fxCanvas.getContext("2d");
+    let fxScale = 1;
     const RES = 0.5;              // canvas pixels per CSS pixel
     // Gold smoke: tones from the wordmark and the bottle's base light
     const COLOURS = ["214, 174, 112", "231, 195, 128", "190, 150, 92", "222, 204, 170"];
@@ -145,6 +153,7 @@
     let src = { x: 0, y: 0, spread: 0, size: 0 };
     let level = 0;
     let particles = [];
+    let fx = [];                  // one-off effects: dust puffs and gold sparks
     let running = false;
     let last = 0;
     let idleSince = 0;
@@ -172,12 +181,28 @@
       sprites.push(c);
     }
 
+    // A tiny bright point of gold, for sparks
+    const spark = document.createElement("canvas");
+    spark.width = spark.height = 32;
+    {
+      const g = spark.getContext("2d");
+      const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+      grad.addColorStop(0, "rgba(255, 246, 225, 1)");
+      grad.addColorStop(0.25, "rgba(240, 205, 145, 0.85)");
+      grad.addColorStop(1, "rgba(216, 169, 100, 0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 32, 32);
+    }
+
     function resize() {
       const rect = back.getBoundingClientRect();
       originX = rect.left;
       originY = rect.top;
       w = back.width = front.width = Math.max(1, Math.round(rect.width * RES));
       h = back.height = front.height = Math.max(1, Math.round(rect.height * RES));
+      fxScale = Math.min(window.devicePixelRatio || 1, 2);
+      fxCanvas.width = Math.max(1, Math.round(rect.width * fxScale));
+      fxCanvas.height = Math.max(1, Math.round(rect.height * fxScale));
 
       // Source = the crater floor under the bottle's final position
       const b = bottleEl.getBoundingClientRect();
@@ -250,6 +275,18 @@
         p.rot += p.spin * dt;
       }
       particles = particles.filter((p) => p.age < p.life);
+
+      // Dust and sparks: simple drift, drag and a little gravity
+      for (const f of fx) {
+        f.age += dt;
+        const drag = Math.exp(-dt * f.drag);
+        f.vx *= drag;
+        f.vy = f.vy * drag + f.gravity * dt;
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+        f.size += f.grow * dt;
+      }
+      fx = fx.filter((f) => f.age < f.life);
     }
 
     function paint(ctx, isFront) {
@@ -271,9 +308,28 @@
       ctx.globalAlpha = 1;
     }
 
+    function paintFx(ctx) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      ctx.setTransform(fxScale, 0, 0, fxScale, 0, 0);   // effects are stored in CSS px
+      for (const f of fx) {
+        const t = f.age / f.life;
+        let a = t < 0.12 ? t / 0.12 : 1 - (t - 0.12) / 0.88;
+        if (f.twinkle) a *= 0.65 + 0.35 * Math.sin(f.age * 18 + f.phase);
+        a *= f.peak;
+        if (a <= 0.003) continue;
+        ctx.globalAlpha = a;
+        ctx.globalCompositeOperation = f.additive ? "lighter" : "source-over";
+        ctx.drawImage(f.sprite, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+    }
+
     function draw() {
       paint(ctxBack, false);
       paint(ctxFront, true);
+      paintFx(ctxFx);
     }
 
     function frame(now) {
@@ -283,7 +339,7 @@
       draw();
 
       // Stop entirely once the smoke is gone
-      if (level === 0 && particles.length === 0) {
+      if (level === 0 && particles.length === 0 && fx.length === 0) {
         running = false;
         return;
       }
@@ -336,10 +392,68 @@
       ptrTime = now;
     }
 
+    // A puff of moon dust where the visitor clicks the ground
+    function puff(clientX, clientY) {
+      if (reducedMotion.matches) return;
+      const x = clientX - originX;
+      const y = clientY - originY;
+      const s = (src.size || 150) / RES;          // CSS px
+      for (let i = 0; i < 16; i++) {
+        const ang = Math.PI + Math.random() * Math.PI;          // upwards half
+        const speed = s * (0.12 + Math.random() * 0.35);
+        fx.push({
+          x: x + (Math.random() - 0.5) * s * 0.06,
+          y,
+          vx: Math.cos(ang) * speed * 1.3,
+          vy: Math.sin(ang) * speed * 0.7,
+          gravity: s * 0.16,
+          drag: 1.6,
+          size: s * (0.05 + Math.random() * 0.08),
+          grow: s * (0.05 + Math.random() * 0.05),
+          age: 0,
+          life: 1.8 + Math.random() * 1.2,
+          peak: 0.5 + Math.random() * 0.25,
+          sprite: sprites[(Math.random() * sprites.length) | 0],
+        });
+      }
+      for (let i = 0; i < 6; i++) sparkAt(x, y, s, 0.6);
+      start();
+    }
+
+    function sparkAt(x, y, s, strength = 1) {
+      fx.push({
+        x: x + (Math.random() - 0.5) * s * 0.05,
+        y: y + (Math.random() - 0.5) * s * 0.03,
+        vx: (Math.random() - 0.5) * s * 0.1,
+        vy: -s * (0.05 + Math.random() * 0.12),
+        gravity: -s * 0.01,
+        drag: 0.9,
+        size: 3 + Math.random() * 5,                 // fine specks, in CSS px
+        grow: 0,
+        age: 0,
+        life: 1.4 + Math.random() * 1.4,
+        peak: strength * (0.7 + Math.random() * 0.3),
+        twinkle: true,
+        phase: Math.random() * 6.28,
+        additive: true,
+        sprite: spark,
+      });
+    }
+
+    // Fine gold dust lifting off a point on screen
+    function sparkle(clientX, clientY, count = 5) {
+      if (reducedMotion.matches) return;
+      const x = clientX - originX;
+      const y = clientY - originY;
+      const s = (src.size || 150) / RES;
+      for (let i = 0; i < count; i++) sparkAt(x, y, s);
+      start();
+    }
+
     window.addEventListener("resize", resize);
     resize();
 
-    return { setLevel, resize, setPointer };
+    return { setLevel, resize, setPointer, puff, sparkle };
   })();
 
 
@@ -526,6 +640,53 @@
   }, { passive: true });
   document.addEventListener("mouseleave", () => depth.set(0, 0));
 
+  // Click the ground: a puff of moon dust where you "step"
+  document.addEventListener("click", (e) => {
+    if ((values.lunar || 0) < 0.8) return;
+    if (e.target.closest && e.target.closest(".waitlist, .moon-share, button, a, input, canvas.sign-pad")) return;
+    if (e.clientY < window.innerHeight * 0.42) return;   // the sky isn't ground
+    smoke.puff(e.clientX, e.clientY);
+  });
+
+
+  /* =========================================
+     SHOOTING STARS
+     Every 10 seconds, once the sky is visible, a faint gold
+     shooting star crosses it and vanishes.
+  ========================================= */
+
+  (() => {
+    if (!("animate" in document.documentElement)) return;
+    const INTERVAL = 10000;
+
+    function fire() {
+      if (reducedMotion.matches || document.hidden) return;
+      if ((values.lunar || 0) < 0.8 || (values["brand-out"] || 0) < 0.9) return;
+
+      const W = stage.clientWidth, H = stage.clientHeight;
+      const star = document.createElement("span");
+      star.className = "shooting-star";
+      stage.appendChild(star);
+
+      const x = W * (0.35 + Math.random() * 0.6);
+      const y = H * (0.04 + Math.random() * 0.2);
+      const angle = 152 + Math.random() * 14;          // travelling left and down
+      const dist = Math.min(W, H) * (0.35 + Math.random() * 0.2);
+      const rad = angle * Math.PI / 180;
+      const dx = Math.cos(rad) * dist, dy = Math.sin(rad) * dist;
+      const at = (f, sx, o) =>
+        ({ transform: `translate(${x + dx * f}px, ${y + dy * f}px) rotate(${angle + 180}deg) scaleX(${sx})`, opacity: o });
+
+      const anim = star.animate(
+        [at(0, 0.2, 0), at(0.25, 1, 1), at(1, 0.6, 0)],
+        { duration: 1300, easing: "cubic-bezier(0.25, 0.6, 0.3, 1)" }
+      );
+      anim.onfinish = () => star.remove();
+    }
+
+    setInterval(fire, INTERVAL);
+  })();
+
 
   /* =========================================
      ARRIVAL
@@ -702,6 +863,25 @@
     });
 
     engraving = { type: "name", letters };
+
+    // Gold dust lifts off each letter as it is cut
+    if (!isStatic) {
+      letters.forEach((L, i) => {
+        setTimeout(() => {
+          const p = bottleToScreen(L.x, L.y - L.size * 0.3);
+          if (p) smoke.sparkle(p.x, p.y, 10);
+        }, i * NAME_STAGGER + 450);
+      });
+    }
+  }
+
+  // Bottle drawing units (900 × 1128) → a point on screen
+  function bottleToScreen(x, y) {
+    const svg = document.querySelector(".bottle-name");
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    if (!r.width) return null;
+    return { x: r.left + (x / 900) * r.width, y: r.top + (y / 1128) * r.height };
   }
 
   /* ---- Drawn signature ---- */
@@ -859,6 +1039,7 @@
 
     const width = clamp(2.2 * k, 4, 7);
     const paths = [];
+    const cutEls = [];
     let delay = 0;
     lines.forEach((s) => {
       const d = pathFor(s);
@@ -872,11 +1053,29 @@
         p.setAttribute("filter", cls === "sig-cut" ? "url(#name-cut)" : "url(#name-glint)");
         p.style.animationDelay = `${delay}ms, ${delay}ms`;
         group.appendChild(p);
+        if (cls === "sig-cut") cutEls.push({ el: p, delay });
       }
       delay += 380;
     });
 
     engraving = { type: "signature", paths, width };
+
+    // Gold dust follows the pen as the signature draws itself
+    if (!isStatic) {
+      cutEls.forEach(({ el, delay: start }) => {
+        let len = 0;
+        try { len = el.getTotalLength(); } catch (e) { return; }
+        const steps = 14;
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          setTimeout(() => {
+            const pt = el.getPointAtLength(len * t);
+            const p = bottleToScreen(pt.x, pt.y);
+            if (p) smoke.sparkle(p.x, p.y, 5);
+          }, start + t * 2400);
+        }
+      });
+    }
   }
 
   async function submitSignature() {
