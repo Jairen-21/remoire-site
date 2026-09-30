@@ -512,7 +512,7 @@ svg {
   justify-content: space-between;
   align-items: center;
 
-  padding: clamp(64px, 11vh, 120px) var(--space-3) calc(clamp(20px, 3.5vh, 40px) + 22px);
+  padding: clamp(64px, 11vh, 120px) var(--space-3) calc(clamp(20px, 3.5vh, 40px) + 48px);
   text-align: center;
 
   pointer-events: none;
@@ -624,7 +624,8 @@ svg {
 }
 
 /* The waiting-list lines get the same light */
-.label-email,
+.label-email .le-1,
+.label-email .le-2,
 .label-name .ln-1,
 .label-name .ln-2 {
   color: var(--gold-wordmark-light);
@@ -640,16 +641,51 @@ svg {
   text-shadow: none;
 }
 
-.waitlist-label.is-sheen .label-email {
+.waitlist-label.is-sheen .label-email .le-2 {
   animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 0.2s both;
 }
 
-.waitlist.is-name .label-name .ln-1 {
+.waitlist.is-name .waitlist-label.is-sheen .ln-1 {
   animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 1.4s both;
 }
 
-.waitlist.is-name .label-name .ln-2 {
+.waitlist.is-name .waitlist-label.is-sheen .ln-2 {
   animation: sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) 2.5s both;
+}
+
+/* Second step: the email seals it */
+@keyframes sheen-again {
+  from { background-position: 100% 0, 0 0; }
+  to   { background-position: 0% 0, 0 0; }
+}
+
+.label-email .le-1,
+.label-email .le-2 {
+  display: block;
+}
+
+.label-email .le-1:empty {
+  display: none;
+}
+
+/* A soft lead-in above "When the moon rises" */
+.label-email .le-1 {
+  margin-bottom: 6px;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.12em;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  position: relative;
+  left: calc(var(--tracking-label) * -0.5);
+}
+
+.waitlist.is-email .waitlist-label .label-email .le-1 {
+  animation: row-in 1s ease 0.5s both, sheen-again 2.4s cubic-bezier(0.45, 0, 0.25, 1) 0.9s both;
+}
+
+.waitlist.is-email .waitlist-label .label-email .le-2 {
+  animation: row-in 1s ease 1.5s both, sheen-again 2.4s cubic-bezier(0.45, 0, 0.25, 1) 1.9s both;
 }
 
 
@@ -979,8 +1015,8 @@ svg {
 }
 
 .waitlist.is-name .label-email { opacity: 0; transition-duration: 0.7s; }
-.waitlist.is-name .ln-1 { opacity: 1; transition-delay: 0.8s; }
-.waitlist.is-name .ln-2 { opacity: 1; transition-delay: 1.9s; }
+.waitlist.is-name .waitlist-label.is-sheen .ln-1 { opacity: 1; transition-delay: 0.8s; }
+.waitlist.is-name .waitlist-label.is-sheen .ln-2 { opacity: 1; transition-delay: 1.9s; }
 
 /* Once they have joined, the line leaves so the message isn't repeated */
 .waitlist.is-done .waitlist-label { opacity: 0; }
@@ -1508,6 +1544,486 @@ svg {
    bottle on the ground, waiting list below.
 ========================================= */
 
+
+/* =========================================
+   SHOOTING STARS: the trail lingers, so they can be caught
+========================================= */
+
+.shooting-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  height: 1px;
+  margin-top: -0.5px;
+  transform-origin: left center;
+  background: linear-gradient(to right, rgba(231, 195, 128, 0), rgba(231, 195, 128, 0.6));
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* =========================================
+   WISHES
+========================================= */
+
+.wish-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: calc(var(--lunar, 0) * var(--brand-out, 0));
+}
+
+.wish-star {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 248, 232, 1) 0%, rgba(240, 210, 160, 0.75) 30%, rgba(216, 169, 100, 0) 70%);
+  animation: wish-twinkle 5s ease-in-out infinite;
+}
+
+.wish-star.is-new {
+  animation: wish-born 1.6s ease-out both, wish-twinkle 5s ease-in-out 1.6s infinite;
+}
+
+@keyframes wish-twinkle {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+@keyframes wish-born {
+  from { opacity: 0; transform: scale(2.8); }
+  to   { opacity: 1; transform: none; }
+}
+
+.wish {
+  position: absolute;
+  left: 50%;
+  top: clamp(64px, 13vh, 150px);
+  z-index: 8;
+  width: min(440px, calc(100% - 2 * var(--space-3)));
+  transform: translateX(-50%);
+  text-align: center;
+  animation: row-in 0.8s ease both;
+  transition: opacity 0.8s ease;
+}
+
+.wish[hidden] {
+  display: none;
+}
+
+.wish::before {
+  content: "";
+  position: absolute;
+  inset: -50px -70px;
+  z-index: -1;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 45%, rgba(0, 0, 0, 0) 72%);
+  pointer-events: none;
+}
+
+.wish.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wish-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(22px, 2vw, 28px);
+  letter-spacing: 0.06em;
+  color: var(--gold-wordmark-light);
+}
+
+.wish-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--gold-hairline);
+}
+
+.wish-field input,
+.wish-letters {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(19px, 1.5vw, 22px);
+  letter-spacing: 0.03em;
+}
+
+.wish-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  color: var(--gold-wordmark-light);
+}
+
+.wish-field input::placeholder {
+  font-style: italic;
+  color: rgba(195, 150, 82, 0.75);
+}
+
+.wish-send {
+  padding: 10px 0 10px 14px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--gold-500);
+  transition: color 0.4s ease, opacity 0.4s ease;
+}
+
+.wish-send:hover { color: var(--gold-wordmark-light); }
+
+.wish-send svg {
+  display: block;
+  width: 32px;
+  height: 12px;
+}
+
+.wish-letters {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 46px;
+  display: flex;
+  align-items: center;
+  white-space: pre;
+  pointer-events: none;
+  color: var(--gold-wordmark-light);
+}
+
+.wish-letters span {
+  display: inline-block;
+  animation: wish-glow 0.9s ease both;
+}
+
+@keyframes wish-glow {
+  0%   { opacity: 1; }
+  40%  { color: #fff3d6; text-shadow: 0 0 6px rgba(253, 232, 187, 1), 0 0 16px rgba(231, 195, 128, 0.8); opacity: 1; }
+  100% { color: #fff3d6; opacity: 0; transform: translateY(-6px); }
+}
+
+.wish.is-releasing .wish-field input { color: transparent; }
+.wish.is-releasing .wish-field input::placeholder { color: transparent; }
+.wish.is-releasing .wish-send { opacity: 0; }
+
+.wish-note {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--gold-500);
+}
+
+.wish-close {
+  margin-top: 4px;
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-transform: uppercase;
+  color: var(--gold-700);
+  transition: color 0.4s ease;
+}
+
+.wish-close:hover { color: var(--gold-500); }
+
+.make-wish {
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--gold-500);
+  transition: color 0.4s ease;
+}
+
+.make-wish:hover { color: var(--gold-wordmark-light); }
+
+/* While a wish is being made, the heading steps aside for it */
+.moon-heading {
+  transition: opacity 0.8s ease;
+}
+
+.brand-sticky.is-wishing .moon-heading {
+  opacity: 0;
+}
+
+.wish-field:focus-within {
+  border-bottom-color: var(--gold-focus);
+}
+
+.wish-send:focus-visible,
+.wish-close:focus-visible,
+.make-wish:focus-visible,
+.birth-moon-open:focus-visible,
+.birth-moon-reveal:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+
+/* =========================================
+   YOUR BIRTH MOON
+========================================= */
+
+.birth-moon-open {
+  position: absolute;
+  left: 50%;
+  bottom: calc(clamp(10px, 1.8vh, 18px) + 20px);
+  transform: translateX(-50%);
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  pointer-events: auto;
+
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+  opacity: var(--list);
+  transition: color 0.4s ease;
+}
+
+.birth-moon-open:hover { color: var(--gold-wordmark-light); }
+
+.brand-sticky.is-list-hidden .birth-moon-open {
+  visibility: hidden;
+}
+
+.birth-moon {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  padding: 24px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.93);
+  animation: row-in 0.8s ease both;
+}
+
+.birth-moon[hidden] {
+  display: none;
+}
+
+.birth-moon-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(460px, 100%);
+  margin: auto;
+  text-align: center;
+}
+
+.birth-moon-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.45em;
+  margin-right: -0.45em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.birth-moon-disc {
+  display: block;
+  width: min(200px, 44vw);
+  height: auto;
+  overflow: visible;
+}
+
+.bm-dark {
+  fill: rgba(195, 150, 82, 0.06);
+  stroke: rgba(195, 150, 82, 0.3);
+  stroke-width: 0.6;
+}
+
+.bm-lit {
+  fill: url(#bm-gold);
+}
+
+.birth-moon-form {
+  width: 100%;
+}
+
+.birth-moon.has-result .birth-moon-form {
+  display: none;
+}
+
+.birth-moon-label {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.6vw, 22px);
+  letter-spacing: 0.04em;
+  color: var(--gold-wordmark-light);
+}
+
+.birth-moon-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--gold-hairline);
+}
+
+.birth-moon-field:focus-within {
+  border-bottom-color: var(--gold-focus);
+}
+
+#birth-date {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  color-scheme: dark;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  color: var(--gold-wordmark-light);
+  text-align: left;
+}
+
+.birth-moon-reveal {
+  padding: 10px 2px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.birth-moon-note {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--gold-500);
+}
+
+.birth-moon-note.is-error {
+  font-style: normal;
+  color: var(--gold-wordmark-light);
+}
+
+.birth-moon-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: row-in 1.2s ease 0.6s both;
+}
+
+.birth-moon-result[hidden] {
+  display: none;
+}
+
+.bm-date {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  margin-right: -0.34em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+}
+
+.bm-phase {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 32px);
+  letter-spacing: 0.04em;
+  color: var(--gold-wordmark-light);
+}
+
+.bm-month {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--gold-500);
+}
+
+.bm-line {
+  max-width: 30ch;
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: clamp(19px, 1.7vw, 22px);
+  line-height: 1.4;
+  color: var(--gold-wordmark-light);
+  text-wrap: balance;
+}
+
+.birth-moon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 22px;
+}
+
+.birth-moon-actions button {
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--gold-hairline);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.birth-moon-actions .bm-close,
+.birth-moon-actions .bm-again {
+  border-bottom-color: transparent;
+  color: var(--gold-700);
+}
+
+.birth-moon-actions button:hover {
+  border-bottom-color: var(--gold-wordmark-light);
+}
+
+.birth-moon-actions button[hidden] {
+  display: none;
+}
+
+.birth-moon-actions button:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;
+}
+
+
 @media (max-width: 760px), (max-aspect-ratio: 4/5) {
 
   :root {
@@ -1532,12 +2048,17 @@ svg {
   }
 
   .moon-copy {
-    padding-bottom: calc(clamp(18px, 3vh, 40px) + 18px);
+    padding-bottom: calc(clamp(18px, 3vh, 40px) + 42px);
   }
 
   .copyright {
     font-size: 10px;
     bottom: 10px;
+  }
+
+  .birth-moon-open {
+    bottom: 26px;
+    font-size: 11px;
   }
 
   .moon-copy::before {
@@ -1644,9 +2165,13 @@ svg {
   }
 
   .moon-soon.is-sheen,
-  .waitlist-label.is-sheen .label-email,
-  .waitlist.is-name .label-name .ln-1,
-  .waitlist.is-name .label-name .ln-2 {
+  .waitlist-label.is-sheen .label-email .le-2,
+  .waitlist.is-name .waitlist-label.is-sheen .ln-1,
+  .waitlist.is-name .waitlist-label.is-sheen .ln-2,
+  .waitlist.is-email .waitlist-label .label-email .le-1,
+  .waitlist.is-email .waitlist-label .label-email .le-2,
+  .wish-star,
+  .wish-star.is-new {
     animation: none;
   }
 

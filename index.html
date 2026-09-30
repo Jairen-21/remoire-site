@@ -183,9 +183,9 @@
 
           <form class="waitlist" novalidate>
             <p class="waitlist-label" id="waitlist-label">
-              <span class="label-email">When the moon rises</span>
-              <!-- Shown after the email, asking for the name to engrave -->
-              <span class="label-name" aria-hidden="true"><span class="ln-1">You found it.</span> <span class="ln-2">Now sign it.</span></span>
+              <!-- First: sign the bottle. Then: the email seals it. -->
+              <span class="label-name"><span class="ln-1">You found it.</span> <span class="ln-2">Now sign it.</span></span>
+              <span class="label-email"><span class="le-1"></span><span class="le-2">When the moon rises</span></span>
             </p>
 
             <div class="waitlist-field">
@@ -237,6 +237,7 @@
             <!-- After joining: keep a picture of it, or start again -->
             <div class="waitlist-after">
               <button type="button" class="save-moon" tabindex="-1">Save your moon</button>
+              <button type="button" class="make-wish" tabindex="-1">Leave a wish with the moon</button>
               <button type="button" class="start-again" tabindex="-1">Start again</button>
             </div>
 
@@ -251,8 +252,32 @@
             </div>
           </form>
 
+          <button type="button" class="birth-moon-open">Your birth moon</button>
           <p class="copyright">© <span class="copyright-year">2026</span> REMOIRE. All rights reserved.</p>
 
+        </div>
+
+
+        <!-- ============ WISHES ============ -->
+        <!-- Stars left by this visitor's wishes (kept on this device only) -->
+        <div class="wish-sky" aria-hidden="true"></div>
+
+        <div class="wish" hidden>
+          <form class="wish-form" novalidate>
+            <p class="wish-title" id="wish-title">Make a wish.</p>
+            <div class="wish-field">
+              <label for="wish-input" class="visually-hidden">Your wish</label>
+              <input type="text" id="wish-input" maxlength="60" placeholder="Whisper it here." autocomplete="off" spellcheck="false" aria-describedby="wish-title wish-note">
+              <button type="submit" class="wish-send" aria-label="Send your wish to the moon">
+                <svg viewBox="0 0 32 12" aria-hidden="true" focusable="false">
+                  <path d="M0 6h30M25 1l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </button>
+              <div class="wish-letters" aria-hidden="true"></div>
+            </div>
+            <p class="wish-note" id="wish-note">Only the moon will know.</p>
+            <button type="button" class="wish-close">Not now</button>
+          </form>
         </div>
 
 
@@ -266,6 +291,47 @@
   </main>
 
   <!-- ============ SAVE YOUR MOON: preview of the Stories image ============ -->
+  <!-- ============ YOUR BIRTH MOON ============ -->
+  <!-- The phase is worked out in the browser; the date is never sent anywhere. -->
+  <div class="birth-moon" role="dialog" aria-modal="true" aria-labelledby="birth-moon-title" hidden>
+    <div class="birth-moon-inner">
+      <h2 class="birth-moon-title" id="birth-moon-title">Your birth moon</h2>
+
+      <svg class="birth-moon-disc" viewBox="0 0 200 200" width="200" height="200" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="bm-gold" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0.1" stop-color="#e7c380"/>
+            <stop offset="0.9" stop-color="#b98a48"/>
+          </linearGradient>
+        </defs>
+        <circle class="bm-dark" cx="100" cy="100" r="90"/>
+        <path class="bm-lit" d="M 100 10 A 90 90 0 0 1 100 190 A 90 90 0 0 0 100 10 Z"/>
+      </svg>
+
+      <form class="birth-moon-form" novalidate>
+        <label for="birth-date" class="birth-moon-label">The night you were born</label>
+        <div class="birth-moon-field">
+          <input type="date" id="birth-date" min="1900-01-01" required>
+          <button type="submit" class="birth-moon-reveal">Reveal</button>
+        </div>
+        <p class="birth-moon-note">Your birthday stays on this device.</p>
+      </form>
+
+      <div class="birth-moon-result" role="status" aria-live="polite" hidden>
+        <p class="bm-date"></p>
+        <p class="bm-phase"></p>
+        <p class="bm-month"></p>
+        <p class="bm-line"></p>
+      </div>
+
+      <div class="birth-moon-actions">
+        <button type="button" class="bm-save" hidden>Save image</button>
+        <button type="button" class="bm-again" hidden>Another date</button>
+        <button type="button" class="bm-close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="moon-share" role="dialog" aria-modal="true" aria-labelledby="moon-share-title" hidden>
     <div class="moon-share-inner">
       <h2 class="moon-share-title" id="moon-share-title">Your moon</h2>

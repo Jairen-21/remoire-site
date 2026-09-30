@@ -191,7 +191,7 @@
     const back = document.querySelector(".smoke-back");
     const front = document.querySelector(".smoke-front");
     const bottleEl = document.querySelector(".bottle");
-    const none = { setLevel() {}, resize() {}, setPointer() {}, puff() {}, sparkle() {}, setMapper() {}, gather() {}, nib() {}, strike() {} };
+    const none = { setLevel() {}, resize() {}, setPointer() {}, puff() {}, sparkle() {}, setMapper() {}, gather() {}, nib() {}, strike() {}, flight(o) { if (o && o.onArrive) setTimeout(o.onArrive, 0); }, burst() {} };
     if (!back || !front || !bottleEl || !back.getContext) return none;
 
     const ctxBack = back.getContext("2d");
@@ -220,6 +220,7 @@
     let bfx = [];                 // effects pinned to the bottle (engraving)
     let nibState = null;          // the etching point, in bottle units
     let mapper = null;            // () => the bottle drawing's box on screen
+    let fxRect = { left: 0, top: 0 };   // where the effects canvas sits on screen
     let running = false;
     let last = 0;
     let idleSince = 0;
@@ -356,6 +357,22 @@
 
       for (const b of bfx) {
         b.age += dt;
+        if (b.kind === "flight") {
+          const t = Math.max(0, Math.min(1, (b.age - b.delay) / b.dur));
+          const e = b.ease ? b.ease(t) : t;
+          const u = 1 - e;
+          b.x = u * u * b.sx + 2 * u * e * b.cx + e * e * b.tx;
+          b.y = u * u * b.sy + 2 * u * e * b.cy + e * e * b.ty;
+          if (b.trail && b.age > b.delay && t < 1 && Math.random() < dt * 60) {
+            sparkAt(b.x - fxRect.left, b.y - fxRect.top, 60, 0.7);
+            const last = fx[fx.length - 1];
+            last.size = 2 + Math.random() * 3;
+            last.vy = -4 - Math.random() * 6;
+            last.vx = (Math.random() - 0.5) * 8;
+            last.life = 0.8 + Math.random() * 0.8;
+          }
+          if (t >= 1 && b.onArrive) { const cb = b.onArrive; b.onArrive = null; cb(); }
+        }
         if (b.kind === "chip") {
           b.vy += 900 * dt;
           b.ox += b.vx * dt;
@@ -398,7 +415,7 @@
         ctx.globalCompositeOperation = f.additive ? "lighter" : "source-over";
         ctx.drawImage(f.sprite, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
       }
-      if (mapper && (bfx.length || nibState)) paintBottleFx(ctx);
+      if (bfx.length || nibState) paintBottleFx(ctx);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     }
@@ -406,14 +423,33 @@
     // Engraving effects live in the bottle's own units (900 × 1128),
     // so they stay locked to the letters through scroll and parallax.
     function paintBottleFx(ctx) {
-      const box = mapper();
-      if (!box || !box.width) return;
-      const me = fxCanvas.getBoundingClientRect();
-      const kx = box.width / 900, ky = box.height / 1128;
-      const X = (x) => box.left - me.left + x * kx;
-      const Y = (y) => box.top - me.top + y * ky;
+      const box = mapper ? mapper() : null;
+      const me = fxRect;
+      const hasBox = !!(box && box.width);
+      const kx = hasBox ? box.width / 900 : 1, ky = hasBox ? box.height / 1128 : 1;
+      const X = (x) => (hasBox ? box.left : 0) - me.left + x * kx;
+      const Y = (y) => (hasBox ? box.top : 0) - me.top + y * ky;
       ctx.globalCompositeOperation = "lighter";
       for (const b of bfx) {
+        if (b.kind === "flight") {
+          if (b.age < b.delay) continue;
+          const t = Math.min(1, (b.age - b.delay) / b.dur);
+          const a = Math.min(1, t * 5) * (b.fadeOut ? 1 - Math.max(0, (t - 0.75) / 0.25) : 1) * b.peak;
+          if (a <= 0.01) continue;
+          ctx.globalAlpha = a;
+          const r = b.size;
+          ctx.drawImage(spark, b.x - me.left - r / 2, b.y - me.top - r / 2, r, r);
+          if (b.core) ctx.drawImage(spark, b.x - me.left - r / 6, b.y - me.top - r / 6, r / 3, r / 3);
+          continue;
+        }
+        if (b.kind === "sflash") {
+          const t = b.age / b.life;
+          const r = b.size * (0.3 + (1 - Math.pow(1 - t, 3)) * 0.7);
+          ctx.globalAlpha = (1 - t) * 0.95;
+          ctx.drawImage(spark, b.x - me.left - r / 2, b.y - me.top - r / 2, r, r);
+          continue;
+        }
+        if (!hasBox) continue;
         if (b.kind === "dust") {
           if (b.age < b.delay) continue;
           const t = Math.min(1, (b.age - b.delay) / b.dur);
@@ -454,6 +490,7 @@
     }
 
     function frame(now) {
+      fxRect = fxCanvas.getBoundingClientRect();
       const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
       last = now;
       step(dt);
@@ -613,10 +650,33 @@
       start();
     }
 
+    // A point of light travelling a curve across the screen (client px).
+    // { sx, sy, tx, ty, cx, cy, delay, dur (ms), size, trail, core, onArrive }
+    function flight(o) {
+      if (reducedMotion.matches) { if (o.onArrive) setTimeout(o.onArrive, 0); return; }
+      bfx.push({
+        kind: "flight", sx: o.sx, sy: o.sy, tx: o.tx, ty: o.ty,
+        cx: o.cx ?? (o.sx + o.tx) / 2, cy: o.cy ?? (o.sy + o.ty) / 2,
+        x: o.sx, y: o.sy, delay: (o.delay || 0) / 1000, dur: (o.dur || 1000) / 1000,
+        life: ((o.delay || 0) + (o.dur || 1000)) / 1000 + (o.linger || 0) / 1000,
+        size: o.size || 5, peak: o.peak ?? 1, trail: !!o.trail, core: !!o.core,
+        fadeOut: o.fadeOut !== false, ease: o.ease || null,
+        age: 0, onArrive: o.onArrive || null,
+      });
+      start();
+    }
+
+    // A small flash of gold with sparks, at a point on screen
+    function burst(clientX, clientY, count = 16, size = 46) {
+      if (reducedMotion.matches) return;
+      bfx.push({ kind: "sflash", x: clientX, y: clientY, age: 0, life: 0.45, size });
+      sparkle(clientX, clientY, count);
+    }
+
     window.addEventListener("resize", resize);
     resize();
 
-    return { setLevel, resize, setPointer, puff, sparkle, setMapper, gather, nib, strike };
+    return { setLevel, resize, setPointer, puff, sparkle, setMapper, gather, nib, strike, flight, burst };
   })();
 
 
@@ -804,9 +864,11 @@
   document.addEventListener("mouseleave", () => depth.set(0, 0));
 
   // Click the ground: a puff of moon dust where you "step"
+  let caughtAt = 0;             // a star was just caught: that tap isn't a step
   document.addEventListener("click", (e) => {
+    if (performance.now() - caughtAt < 500) return;
     if ((values.lunar || 0) < 0.8) return;
-    if (e.target.closest && e.target.closest(".waitlist, .moon-share, button, a, input, canvas.sign-pad")) return;
+    if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, button, a, input, canvas.sign-pad")) return;
     if (e.clientY < window.innerHeight * 0.42) return;   // the sky isn't ground
     smoke.puff(e.clientX, e.clientY);
   });
@@ -815,37 +877,115 @@
   /* =========================================
      SHOOTING STARS
      Every 10 seconds, once the sky is visible, a faint gold
-     shooting star crosses it and vanishes.
+     shooting star crosses it. They are quick, so they are
+     forgiving to catch: a tap anywhere near the star or the
+     trail it leaves (which lingers for a second) counts.
+     Catch one and make a wish.
   ========================================= */
+
+  const wishHooks = { open: null };   // filled in by the wish section
 
   (() => {
     if (!("animate" in document.documentElement)) return;
     const INTERVAL = 10000;
+    const DURATION = 1300;
+    const LINGER = 1000;        // ms the trail stays catchable after the star
+    const REACH = 40;           // px: about a thumb
+    const active = [];
 
     function fire() {
       if (reducedMotion.matches || document.hidden) return;
       if ((values.lunar || 0) < 0.8 || (values["brand-out"] || 0) < 0.9) return;
+      if (document.querySelector(".wish:not([hidden])")) return;
 
       const W = stage.clientWidth, H = stage.clientHeight;
-      const star = document.createElement("span");
-      star.className = "shooting-star";
-      stage.appendChild(star);
-
       const x = W * (0.35 + Math.random() * 0.6);
       const y = H * (0.04 + Math.random() * 0.2);
       const angle = 152 + Math.random() * 14;          // travelling left and down
       const dist = Math.min(W, H) * (0.35 + Math.random() * 0.2);
       const rad = angle * Math.PI / 180;
       const dx = Math.cos(rad) * dist, dy = Math.sin(rad) * dist;
+      const easing = "cubic-bezier(0.25, 0.6, 0.3, 1)";
+
+      // The faint trail it leaves behind
+      const trail = document.createElement("span");
+      trail.className = "shooting-trail";
+      trail.style.width = `${dist}px`;
+      stage.appendChild(trail);
+      const tr = (sx, o) => ({ transform: `translate(${x}px, ${y}px) rotate(${angle}deg) scaleX(${sx})`, opacity: o });
+      const trailAnim = trail.animate([tr(0, 0), tr(0.25, 0.5), tr(1, 0.4)], { duration: DURATION, easing, fill: "forwards" });
+
+      const star = document.createElement("span");
+      star.className = "shooting-star";
+      stage.appendChild(star);
       const at = (f, sx, o) =>
         ({ transform: `translate(${x + dx * f}px, ${y + dy * f}px) rotate(${angle + 180}deg) scaleX(${sx})`, opacity: o });
-
       const anim = star.animate(
         [at(0, 0.2, 0), at(0.25, 1, 1), at(1, 0.6, 0)],
-        { duration: 1300, easing: "cubic-bezier(0.25, 0.6, 0.3, 1)" }
+        { duration: DURATION, easing }
       );
+
+      const s = { x, y, dx, dy, star, trail, anim, born: performance.now(), caught: false };
+      active.push(s);
+
       anim.onfinish = () => star.remove();
+      trailAnim.onfinish = () => {
+        if (s.caught) return;
+        trail.animate([{ opacity: 0.4 }, { opacity: 0 }], { duration: LINGER, fill: "forwards" }).onfinish = () => {
+          trail.remove();
+          const k = active.indexOf(s);
+          if (k >= 0) active.splice(k, 1);
+        };
+      };
     }
+
+    // How far along its path the star is (0 → 1), matching its keyframes
+    function travelled(s) {
+      const timing = s.anim.effect && s.anim.effect.getComputedTiming();
+      const p = timing && timing.progress != null ? timing.progress : 1;
+      return p < 0.5 ? 0.25 * (p / 0.5) : 0.25 + 0.75 * ((p - 0.5) / 0.5);
+    }
+
+    function distanceToSegment(px, py, ax, ay, bx, by) {
+      const vx = bx - ax, vy = by - ay;
+      const len2 = vx * vx + vy * vy || 1;
+      const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+      return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+    }
+
+    function tryCatch(clientX, clientY) {
+      const r = stage.getBoundingClientRect();
+      const px = clientX - r.left, py = clientY - r.top;
+      const now = performance.now();
+      for (const s of active) {
+        if (s.caught || now - s.born > DURATION + LINGER) continue;
+        const f = travelled(s);
+        if (distanceToSegment(px, py, s.x, s.y, s.x + s.dx * f, s.y + s.dy * f) <= REACH) {
+          catchStar(s, clientX, clientY);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function catchStar(s, clientX, clientY) {
+      s.caught = true;
+      caughtAt = performance.now();
+      s.anim.cancel();
+      s.star.remove();
+      s.trail.getAnimations().forEach((a) => a.commitStyles && a.commitStyles());
+      s.trail.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 900, fill: "forwards" }).onfinish = () => s.trail.remove();
+      const k = active.indexOf(s);
+      if (k >= 0) active.splice(k, 1);
+      smoke.burst(clientX, clientY, 18, 54);
+      if (wishHooks.open) setTimeout(() => wishHooks.open("star"), 450);
+    }
+
+    document.addEventListener("pointerdown", (e) => {
+      if (!active.length) return;
+      if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, button, a, input, canvas.sign-pad")) return;
+      tryCatch(e.clientX, e.clientY);
+    }, { passive: true });
 
     setInterval(fire, INTERVAL);
   })();
@@ -897,7 +1037,8 @@
   const NAME_DELAY = 1400;      // ms into the light before the name is cut
   const NAME_STAGGER = 140;     // ms between engraved letters
 
-  let step = "email";           // "email" → "name" → "done"
+  let step = "name";            // "name" → "email" → "done"
+  let pending = { name: null, signature: null };   // what they engraved, until the email seals it
   let busy = false;
 
   // Light spreads across the bottle: a reward for joining.
@@ -1453,42 +1594,57 @@
     if (pad) {
       pad.classList.add("is-sinking");
       await new Promise((r) => setTimeout(r, reducedMotion.matches ? 400 : 1500));
+      pad.classList.remove("is-sinking");
     }
-    finish(null, lines);
+    clearPad();
+    showEmailStep(null, lines);
   }
 
 
   /* ---- Steps ---- */
 
-  function showNameStep() {
+  // Step one: sign the bottle. Nothing is focused on arrival.
+  function prepareNameStep() {
     step = "name";
-    input.value = "";
     input.tabIndex = -1;
     if (nameInput) nameInput.tabIndex = 0;
     if (skipBtn) skipBtn.tabIndex = 0;
     modeBtns.forEach((b) => (b.tabIndex = 0));
     form.classList.add("is-name");
-    status.textContent = "";
-    setTimeout(() => nameInput && nameInput.focus({ preventScroll: true }), 400);
   }
 
-  function finish(name, signature) {
-    step = "done";
+  // Step two: their name is on the moon; the email seals it.
+  function showEmailStep(name, signature) {
+    pending = { name: name || null, signature: signature || null };
+    step = "email";
+    const le1 = form.querySelector(".le-1");
+    if (le1) le1.textContent = name ? "Your name is on the moon." : signature ? "Your mark is on the moon." : "";
     form.classList.remove("is-name", "is-draw", "has-ink");
+    form.classList.add("is-email");
     modeBtns.forEach((b) => (b.tabIndex = -1));
     if (clearBtn) clearBtn.tabIndex = -1;
-    form.classList.add("is-done");
     if (nameInput) { nameInput.value = ""; nameInput.tabIndex = -1; nameInput.blur(); }
     if (skipBtn) skipBtn.tabIndex = -1;
+    input.tabIndex = 0;
+    status.textContent = "";
+
+    // The bottle is engraved while they write their email
+    const delay = reducedMotion.matches ? 100 : 300;
+    if (name) setTimeout(() => engraveBottle(name), delay);
+    else if (signature) setTimeout(() => engraveSignature(signature), delay);
+    setTimeout(() => input.focus({ preventScroll: true }), 1600);
+  }
+
+  function finish() {
+    const { name, signature } = pending;
+    step = "done";
+    form.classList.remove("is-name", "is-email", "is-draw", "has-ink");
+    form.classList.add("is-done");
+    input.tabIndex = -1;
     status.textContent = name ? `${THANKS} Your name is engraved on the bottle.`
                        : signature ? `${THANKS} Your signature is engraved on the bottle.`
                        : THANKS;
     lightTheBottle();
-    const delay = reducedMotion.matches ? 300 : NAME_DELAY;
-    if (name) setTimeout(() => engraveBottle(name), delay);
-    else if (signature) setTimeout(() => engraveSignature(signature), delay);
-    else engraving = null;
-
     remember({ name: name || null, signature: signature ? compact(signature) : null });
     enableAfter();
   }
@@ -1555,13 +1711,13 @@
 
     input.blur();
     await engrave(email);
-    showNameStep();
+    finish();
   }
 
   async function submitName() {
     if (mode === "draw") return submitSignature();
     const name = cleanName(nameInput ? nameInput.value : "");
-    if (!name) return finish(null);
+    if (!name) return showEmailStep(null, null);
     if (BLOCKED.test(name.replace(/[^\p{L}]/gu, ""))) {
       status.textContent = "Please choose another name";
       nameInput.focus();
@@ -1570,7 +1726,7 @@
     nameInput.blur();
     // The name stays on this screen only; it is not sent anywhere.
     await engrave(name);
-    finish(name);
+    showEmailStep(name, null);
   }
 
   form.addEventListener("submit", async (event) => {
@@ -1587,7 +1743,7 @@
 
   if (skipBtn) {
     skipBtn.addEventListener("click", () => {
-      if (step === "name" && !busy) finish(null);
+      if (step === "name" && !busy) showEmailStep(null, null);
     });
   }
 
@@ -1635,8 +1791,11 @@
   const saveBtn = form.querySelector(".save-moon");
   const startAgainBtn = form.querySelector(".start-again");
 
+  const wishBtn = form.querySelector(".make-wish");
+
   function enableAfter() {
     if (saveBtn) saveBtn.tabIndex = 0;
+    if (wishBtn) wishBtn.tabIndex = 0;
     if (startAgainBtn) startAgainBtn.tabIndex = 0;
   }
 
@@ -1656,6 +1815,7 @@
 
   // A returning visitor: the bottle is already lit and signed
   const returning = recall();
+  if (!returning) prepareNameStep();
   if (returning) {
     step = "done";
     form.classList.add("is-done", "is-returning");
@@ -1837,22 +1997,31 @@
     return blob;
   }
 
+  let shareTrigger = null;
+  let shareName = "remoire.jpg";
+  const shareTitle = shareBox && shareBox.querySelector(".moon-share-title");
+
   function closeShare() {
     if (!shareBox) return;
     shareBox.hidden = true;
     document.documentElement.style.overflow = "";
-    if (saveBtn) saveBtn.focus({ preventScroll: true });
+    if (shareTrigger) shareTrigger.focus({ preventScroll: true });
   }
 
-  async function openShare() {
+  async function openShare(opts = {}) {
     if (!shareBox || !shareImg) return;
-    const label = saveBtn ? saveBtn.textContent : "";
-    if (saveBtn) saveBtn.textContent = "Preparing your moon";
+    const make = opts.make || drawMoonImage;
+    const trigger = shareTrigger = opts.trigger || saveBtn;
+    shareName = opts.file || "remoire.jpg";
+    if (shareTitle) shareTitle.textContent = opts.title || "Your moon";
+    shareImg.alt = opts.alt || "Your signed REMOIRE bottle in the crater.";
+    const label = trigger ? trigger.textContent : "";
+    if (trigger) trigger.textContent = opts.preparing || "Preparing your moon";
     try {
-      const blob = await drawMoonImage();
+      const blob = await make();
       if (shareUrl) URL.revokeObjectURL(shareUrl);
       shareUrl = URL.createObjectURL(blob);
-      shareFile = new File([blob], "remoire.jpg", { type: "image/jpeg" });
+      shareFile = new File([blob], shareName, { type: "image/jpeg" });
       shareImg.src = shareUrl;
 
       const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [shareFile] }));
@@ -1864,11 +2033,11 @@
     } catch (e) {
       console.warn("[REMOIRE] Could not prepare the image", e);
     } finally {
-      if (saveBtn) saveBtn.textContent = label;
+      if (trigger) trigger.textContent = label;
     }
   }
 
-  if (saveBtn) saveBtn.addEventListener("click", openShare);
+  if (saveBtn) saveBtn.addEventListener("click", () => openShare());
   if (shareCloseBtn) shareCloseBtn.addEventListener("click", closeShare);
   if (shareBox) {
     shareBox.addEventListener("click", (e) => { if (e.target === shareBox) closeShare(); });
@@ -1882,7 +2051,7 @@
       if (!shareUrl) return;
       const a = document.createElement("a");
       a.href = shareUrl;
-      a.download = "remoire.jpg";
+      a.download = shareName;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1897,4 +2066,479 @@
       } catch (e) { /* closed the share sheet */ }
     });
   }
+  /* =========================================
+     A WISH TO THE MOON
+     After signing, or after catching a shooting star. The
+     letters turn to gold dust, gather into one spark, and it
+     rises into the sky to stay as a star. The wish itself is
+     never stored or sent: only where its star sits, on this
+     device.
+  ========================================= */
+
+  const wishBox = document.querySelector(".wish");
+  const wishForm = wishBox && wishBox.querySelector(".wish-form");
+  const wishInput = wishBox && wishBox.querySelector("#wish-input");
+  const wishTitle = wishBox && wishBox.querySelector(".wish-title");
+  const wishLetters = wishBox && wishBox.querySelector(".wish-letters");
+  const wishCloseBtn = wishBox && wishBox.querySelector(".wish-close");
+  const wishSky = document.querySelector(".wish-sky");
+  const WISH_KEY = "remoire-wishes";
+  const MAX_WISH_STARS = 24;
+  let wishBusy = false;
+  const easeInOut3 = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  function loadWishStars() {
+    try {
+      const list = JSON.parse(localStorage.getItem(WISH_KEY) || "[]");
+      return Array.isArray(list)
+        ? list.filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).slice(-MAX_WISH_STARS)
+        : [];
+    } catch (e) { return []; }
+  }
+
+  function saveWishStars(list) {
+    try { localStorage.setItem(WISH_KEY, JSON.stringify(list.slice(-MAX_WISH_STARS))); } catch (e) {}
+  }
+
+  function placeWishStar(p, isNew) {
+    if (!wishSky) return;
+    const el = document.createElement("span");
+    el.className = "wish-star" + (isNew ? " is-new" : "");
+    el.style.left = `${p.x}%`;
+    el.style.top = `${p.y}%`;
+    if (!isNew) el.style.animationDelay = `${(-Math.random() * 5).toFixed(2)}s`;
+    wishSky.appendChild(el);
+  }
+
+  loadWishStars().forEach((p) => placeWishStar(p, false));
+
+  function anyDialogOpen() {
+    return (shareBox && !shareBox.hidden) || (birthBox && !birthBox.hidden);
+  }
+
+  function openWish(from) {
+    if (!wishBox || wishBusy || !wishBox.hidden || anyDialogOpen()) return;
+    wishTitle.textContent = from === "star" ? "Make a wish." : "Leave one wish with the moon.";
+    wishBox.classList.remove("is-leaving", "is-releasing");
+    wishLetters.textContent = "";
+    wishInput.value = "";
+    wishBox.hidden = false;
+    stage.classList.add("is-wishing");
+    setTimeout(() => wishInput.focus({ preventScroll: true }), 350);
+  }
+  wishHooks.open = openWish;
+
+  function hideWish() {
+    if (!wishBox || wishBox.hidden) return;
+    wishBox.classList.add("is-leaving");
+    stage.classList.remove("is-wishing");
+    setTimeout(() => {
+      wishBox.hidden = true;
+      wishBox.classList.remove("is-leaving", "is-releasing");
+      wishLetters.textContent = "";
+      wishInput.value = "";
+    }, 800);
+  }
+
+  function landWish(target, clientX, clientY) {
+    if (clientX != null) smoke.burst(clientX, clientY, 10, 40);
+    placeWishStar(target, true);
+    const list = loadWishStars();
+    list.push({ x: Math.round(target.x * 100) / 100, y: Math.round(target.y * 100) / 100 });
+    saveWishStars(list);
+    wishBusy = false;
+  }
+
+  function releaseWish(text) {
+    wishBusy = true;
+    const r = stage.getBoundingClientRect();
+    const target = { x: 12 + Math.random() * 76, y: 6 + Math.random() * 22 };   // % of the sky
+    const tx = r.left + r.width * target.x / 100;
+    const ty = r.top + r.height * target.y / 100;
+
+    // The typed letters take the input's place, glow, and lift away
+    wishLetters.textContent = "";
+    const spans = [...text].map((ch, i) => {
+      const s = document.createElement("span");
+      s.textContent = ch;
+      s.style.animationDelay = `${i * 25}ms`;
+      wishLetters.appendChild(s);
+      return s;
+    });
+    wishBox.classList.add("is-releasing");
+    wishInput.blur();
+
+    if (reducedMotion.matches) {
+      hideWish();
+      landWish(target);
+      return;
+    }
+
+    const field = wishBox.querySelector(".wish-field").getBoundingClientRect();
+    const gx = field.left + field.width / 2;
+    const gy = field.top - 26;
+    spans.forEach((s, i) => {
+      const rc = s.getBoundingClientRect();
+      if (!rc.width || rc.right > field.right) return;
+      for (let k = 0; k < 4; k++) {
+        const sx = rc.left + Math.random() * rc.width;
+        const sy = rc.top + rc.height * (0.3 + Math.random() * 0.5);
+        smoke.flight({
+          sx, sy, tx: gx, ty: gy,
+          cx: (sx + gx) / 2 + (Math.random() - 0.5) * 90, cy: Math.min(sy, gy) - 20 - Math.random() * 50,
+          delay: 250 + i * 25 + Math.random() * 200, dur: 800 + Math.random() * 300,
+          size: 3 + Math.random() * 2.5, peak: 0.9, ease: easeInOut3,
+        });
+      }
+    });
+
+    // Gathered: one spark rises to its place in the sky
+    const gathered = 250 + spans.length * 25 + 200 + 1100;
+    setTimeout(() => {
+      hideWish();
+      smoke.burst(gx, gy, 6, 28);
+      smoke.flight({
+        sx: gx, sy: gy, tx, ty,
+        cx: gx + (tx - gx) * 0.2 + (Math.random() - 0.5) * 120, cy: Math.min(gy, ty) - 70,
+        dur: 1700, size: 18, core: true, trail: true, fadeOut: false, ease: easeInOut3,
+        onArrive: () => landWish(target, tx, ty),
+      });
+    }, gathered);
+  }
+
+  if (wishForm) {
+    wishForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (wishBusy) return;
+      const text = wishInput.value.replace(/\s+/g, " ").trim();
+      if (!text) { wishInput.focus(); return; }
+      releaseWish(text);
+    });
+    wishCloseBtn.addEventListener("click", () => { if (!wishBusy) hideWish(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !wishBox.hidden && !wishBusy) hideWish();
+    });
+  }
+  if (wishBtn) wishBtn.addEventListener("click", () => openWish("button"));
+
+
+  /* =========================================
+     YOUR BIRTH MOON
+     The moon's phase on the night they were born, worked out
+     here in the browser (a standard low-precision lunar
+     model, good to within a few hours). The date is kept on
+     this device only.
+  ========================================= */
+
+  const birthBox = document.querySelector(".birth-moon");
+  const birthOpenBtn = document.querySelector(".birth-moon-open");
+
+  if (birthBox && birthOpenBtn) {
+    const bForm = birthBox.querySelector(".birth-moon-form");
+    const bInput = birthBox.querySelector("#birth-date");
+    const bNote = birthBox.querySelector(".birth-moon-note");
+    const bResult = birthBox.querySelector(".birth-moon-result");
+    const bDate = birthBox.querySelector(".bm-date");
+    const bPhase = birthBox.querySelector(".bm-phase");
+    const bMonth = birthBox.querySelector(".bm-month");
+    const bLine = birthBox.querySelector(".bm-line");
+    const bLit = birthBox.querySelector(".bm-lit");
+    const bSave = birthBox.querySelector(".bm-save");
+    const bAgain = birthBox.querySelector(".bm-again");
+    const bClose = birthBox.querySelector(".bm-close");
+    const BIRTH_KEY = "remoire-birth";
+    const NOTE = bNote.textContent;
+
+    const PHASE_NAMES = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous",
+                         "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
+    const PHASE_LINES = [
+      "Born under a new moon: a beginning, written in the dark.",
+      "Born under a waxing crescent: always becoming.",
+      "Born under a first quarter: half in light, half in wonder.",
+      "Born under a waxing gibbous: nearly full, never finished.",
+      "Born under a full moon: nothing hidden, everything bright.",
+      "Born under a waning gibbous: generous with its light.",
+      "Born under a last quarter: at peace with the dark.",
+      "Born under a waning crescent: the quiet before the new.",
+    ];
+    const MONTH_MOONS = ["Wolf Moon", "Snow Moon", "Worm Moon", "Pink Moon", "Flower Moon", "Strawberry Moon",
+                         "Buck Moon", "Sturgeon Moon", "Harvest Moon", "Hunter’s Moon", "Beaver Moon", "Cold Moon"];
+
+    // Angle between the moon and the sun as seen from Earth (0 = new, 180 = full)
+    function elongation(date) {
+      const d = date.getTime() / 86400000 + 2440587.5 - 2451545.0;
+      const rad = Math.PI / 180;
+      const g = (357.529 + 0.98560028 * d) * rad;
+      const sun = 280.459 + 0.98564736 * d + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g);
+      const Mm = (134.963 + 13.064993 * d) * rad;
+      const F = (93.272 + 13.229350 * d) * rad;
+      const D = (297.850 + 12.190749 * d) * rad;
+      const moon = 218.316 + 13.176396 * d
+        + 6.289 * Math.sin(Mm) - 1.274 * Math.sin(Mm - 2 * D) + 0.658 * Math.sin(2 * D)
+        + 0.214 * Math.sin(2 * Mm) - 0.186 * Math.sin(g) - 0.114 * Math.sin(2 * F);
+      return ((moon - sun) % 360 + 360) % 360;
+    }
+
+    function phaseIndex(E) {
+      if (E < 12 || E >= 348) return 0;
+      if (E < 78) return 1;
+      if (E < 102) return 2;
+      if (E < 168) return 3;
+      if (E < 192) return 4;
+      if (E < 258) return 5;
+      if (E < 282) return 6;
+      return 7;
+    }
+
+    // Lit part of a 90-radius moon centred at 100,100; waning phases are mirrored
+    function litPath(w) {
+      const rx = (90 * Math.abs(Math.cos(w * Math.PI / 180))).toFixed(2);
+      return `M 100 10 A 90 90 0 0 1 100 190 A ${rx} 90 0 0 ${w < 90 ? 0 : 1} 100 10 Z`;
+    }
+
+    function drawDisc(E) {
+      const waning = E > 180;
+      bLit.setAttribute("d", litPath(waning ? 360 - E : E));
+      if (waning) bLit.setAttribute("transform", "matrix(-1 0 0 1 200 0)");
+      else bLit.removeAttribute("transform");
+    }
+
+    let discRun = 0;
+    function revealDisc(E) {
+      const run = ++discRun;
+      const waning = E > 180;
+      const w = waning ? 360 - E : E;
+      if (reducedMotion.matches) { drawDisc(E); return; }
+      const start = performance.now();
+      const tick = (now) => {
+        if (run !== discRun) return;
+        const t = Math.min(1, (now - start) / 1800);
+        const cur = w * ease(t);
+        drawDisc(waning ? 360 - cur : cur);
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = new Date();
+    bInput.max = iso(today);
+
+    let current = null;
+
+    function readingFor(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+      if (!m) return null;
+      const y = +m[1], mo = +m[2], da = +m[3];
+      const night = new Date(y, mo - 1, da, 21, 0, 0);       // the evening of that day
+      if (isNaN(night) || y < 1900 || night.getDate() !== da) return null;
+      if (night > new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59)) return null;
+      const E = elongation(night);
+      const idx = phaseIndex(E);
+      const pct = Math.round((1 - Math.cos(E * Math.PI / 180)) / 2 * 100);
+      const dateText = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(night);
+      return {
+        E, idx, pct,
+        dateText: `The night of ${dateText}`,
+        phase: PHASE_NAMES[idx],
+        month: `${pct}% lit, in the month of the ${MONTH_MOONS[mo - 1]}`,
+        line: PHASE_LINES[idx],
+      };
+    }
+
+    function showResult(r) {
+      current = r;
+      bDate.textContent = r.dateText;
+      bPhase.textContent = r.phase;
+      bMonth.textContent = r.month;
+      bLine.textContent = r.line;
+      birthBox.classList.add("has-result");
+      bResult.hidden = false;
+      bSave.hidden = false;
+      bAgain.hidden = false;
+      revealDisc(r.E);
+    }
+
+    function resetBirth() {
+      discRun++;
+      current = null;
+      birthBox.classList.remove("has-result");
+      bResult.hidden = true;
+      bSave.hidden = true;
+      bAgain.hidden = true;
+      bNote.textContent = NOTE;
+      bNote.classList.remove("is-error");
+      drawDisc(38);
+    }
+
+    function openBirth() {
+      if (!birthBox.hidden) return;
+      resetBirth();
+      let saved = null;
+      try { saved = localStorage.getItem(BIRTH_KEY); } catch (e) {}
+      if (saved) bInput.value = saved;
+      birthBox.hidden = false;
+      document.documentElement.style.overflow = "hidden";
+      setTimeout(() => bInput.focus({ preventScroll: true }), 300);
+    }
+
+    function closeBirth() {
+      birthBox.hidden = true;
+      document.documentElement.style.overflow = "";
+      birthOpenBtn.focus({ preventScroll: true });
+    }
+
+    bForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const r = readingFor(bInput.value);
+      if (!r) {
+        bNote.textContent = "Choose a date between 1900 and today";
+        bNote.classList.add("is-error");
+        bInput.focus();
+        return;
+      }
+      try { localStorage.setItem(BIRTH_KEY, bInput.value); } catch (e2) {}
+      bInput.blur();
+      showResult(r);
+      bClose.focus({ preventScroll: true });
+    });
+    bInput.addEventListener("input", () => {
+      bNote.textContent = NOTE;
+      bNote.classList.remove("is-error");
+    });
+
+    bAgain.addEventListener("click", () => {
+      resetBirth();
+      bInput.focus({ preventScroll: true });
+    });
+    bClose.addEventListener("click", closeBirth);
+    birthBox.addEventListener("click", (e) => { if (e.target === birthBox) closeBirth(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !birthBox.hidden) closeBirth();
+    });
+    birthOpenBtn.addEventListener("click", openBirth);
+
+    bSave.addEventListener("click", () => {
+      if (!current) return;
+      const r = current;
+      birthBox.hidden = true;
+      openShare({
+        make: () => drawBirthMoonImage(r),
+        title: "Your birth moon",
+        alt: `The moon on the night you were born: ${r.phase}.`,
+        file: "remoire-birth-moon.jpg",
+        trigger: birthOpenBtn,
+        preparing: "Preparing your moon",
+      });
+    });
+
+    async function drawBirthMoonImage(r) {
+      const W = 1080, H = 1920;
+      const c = document.createElement("canvas");
+      c.width = W;
+      c.height = H;
+      const ctx = c.getContext("2d");
+      if (document.fonts && document.fonts.load) {
+        try {
+          await Promise.all([
+            document.fonts.load('400 40px "Cormorant Garamond"'),
+            document.fonts.load('500 40px "Cormorant Garamond"'),
+            document.fonts.load('600 40px "Cormorant Garamond"'),
+          ]);
+        } catch (e) {}
+      }
+      const [bg, wordmark] = await Promise.all([
+        loadImage("assets/moon-background.webp"),
+        loadImage("assets/remoire-wordmark.svg"),
+      ]);
+
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+
+      // A low glimpse of the landscape at the foot
+      const s = (H * 0.55) / bg.height;
+      const bw = bg.width * s;
+      ctx.globalAlpha = 0.45;
+      ctx.drawImage(bg, (W - bw) / 2, H * 0.45, bw, H * 0.55);
+      ctx.globalAlpha = 1;
+      const fade = ctx.createLinearGradient(0, H * 0.45, 0, H);
+      fade.addColorStop(0, "rgba(0,0,0,1)");
+      fade.addColorStop(0.45, "rgba(0,0,0,0.55)");
+      fade.addColorStop(1, "rgba(0,0,0,0.85)");
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, H * 0.45, W, H * 0.55);
+
+      const wmW = 640, wmH = wmW * 167 / 1850;
+      ctx.drawImage(wordmark, (W - wmW) / 2, 210, wmW, wmH);
+
+      const tracked = (text, y, font, colour, tracking) => {
+        ctx.font = font;
+        ctx.fillStyle = colour;
+        ctx.textAlign = "left";
+        const chars = [...text];
+        const widths = chars.map((ch) => ctx.measureText(ch).width);
+        const total = widths.reduce((a, b) => a + b, 0) + tracking * (chars.length - 1);
+        let x = (W - total) / 2;
+        chars.forEach((ch, i) => { ctx.fillText(ch, x, y); x += widths[i] + tracking; });
+      };
+      const gold = ctx.createLinearGradient(0, 330, 0, 372);
+      gold.addColorStop(0.15, "#e7c380");
+      gold.addColorStop(0.75, "#c39652");
+      tracked("YOUR BIRTH MOON", 368, '500 34px "Cormorant Garamond", Garamond, serif', gold, 34 * 0.5);
+
+      // The moon
+      const R = 300, CX = W / 2, CY = 820, k = R / 90;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(195,150,82,0.07)";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(195,150,82,0.3)";
+      ctx.stroke();
+      ctx.restore();
+
+      const waning = r.E > 180;
+      const w = waning ? 360 - r.E : r.E;
+      ctx.save();
+      ctx.translate(CX - 100 * k, CY - 100 * k);
+      ctx.scale(k, k);
+      if (waning) { ctx.translate(200, 0); ctx.scale(-1, 1); }
+      const litGold = ctx.createLinearGradient(0, 10, 0, 190);
+      litGold.addColorStop(0.1, "#e7c380");
+      litGold.addColorStop(0.9, "#b98a48");
+      ctx.fillStyle = litGold;
+      ctx.shadowColor = "rgba(231,195,128,0.3)";
+      ctx.shadowBlur = 18;
+      if (window.Path2D) ctx.fill(new Path2D(litPath(w)));
+      ctx.restore();
+
+      ctx.textAlign = "center";
+      tracked(r.dateText.toUpperCase(), 1250, '500 28px "Cormorant Garamond", Garamond, serif', "#c39652", 28 * 0.3);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#e7c380";
+      ctx.font = '500 84px "Cormorant Garamond", Garamond, serif';
+      ctx.fillText(r.phase, W / 2, 1360);
+      ctx.fillStyle = "#c39652";
+      ctx.font = 'italic 400 38px "Cormorant Garamond", Garamond, serif';
+      ctx.fillText(r.month, W / 2, 1432);
+
+      ctx.fillStyle = "#e7c380";
+      ctx.font = '400 46px "Cormorant Garamond", Garamond, serif';
+      const words = r.line.split(" ");
+      const lines = [];
+      let lineText = "";
+      for (const word of words) {
+        const test = lineText ? `${lineText} ${word}` : word;
+        if (ctx.measureText(test).width > 820 && lineText) { lines.push(lineText); lineText = word; }
+        else lineText = test;
+      }
+      if (lineText) lines.push(lineText);
+      lines.forEach((l, i) => ctx.fillText(l, W / 2, 1540 + i * 62));
+
+      tracked("REMOIRE.CO", 1810, '600 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.5);
+      return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.9));
+    }
+  }
+
 })();
