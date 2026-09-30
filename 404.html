@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>REMOIRE — Lost in the dark</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+
+  <!-- Served by Cloudflare Pages for any address that doesn't exist.
+       Paths start with "/" so they work from any depth. -->
+  <style>
+    @font-face {
+      font-family: "Cormorant Garamond";
+      src: url("/assets/fonts/CormorantGaramond-500-normal.woff2") format("woff2");
+      font-weight: 500;
+      font-display: swap;
+    }
+
+    :root {
+      color-scheme: dark;
+      --black: #000000;
+      --gold-500: #c39652;
+      --gold-wordmark-light: #e7c380;
+      --gold-hairline: rgba(195, 150, 82, 0.38);
+      --font-display: "Cormorant Garamond", Garamond, "Times New Roman", serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      background: var(--black);
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: var(--font-display);
+      color: var(--gold-500);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* A dim glimpse of the lunar landscape */
+    .scene {
+      position: fixed;
+      inset: 0;
+      background: var(--black) url("/assets/moon-background.webp") center 60% / cover no-repeat;
+      opacity: 0.22;
+    }
+
+    .scene::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.9));
+    }
+
+    main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: arrive 2.4s cubic-bezier(0.33, 0, 0.2, 1) both;
+    }
+
+    @keyframes arrive {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .emblem {
+      width: auto;
+      height: clamp(90px, 16vh, 140px);
+      margin-bottom: clamp(36px, 6vh, 56px);
+    }
+
+    h1 {
+      font-weight: 500;
+      font-size: clamp(18px, 2.2vw, 28px);
+      line-height: 1.4;
+      letter-spacing: 0.5em;
+      margin-right: -0.5em;
+      text-transform: uppercase;
+      text-wrap: balance;
+      background: linear-gradient(to bottom, var(--gold-wordmark-light) 15%, var(--gold-500) 75%);
+      -webkit-background-clip: text;
+              background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    a {
+      margin-top: clamp(28px, 5vh, 44px);
+      padding: 10px 2px;
+      border-bottom: 1px solid var(--gold-hairline);
+      font-weight: 500;
+      font-size: 15px;
+      letter-spacing: 0.4em;
+      margin-right: -0.4em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--gold-wordmark-light);
+      transition: border-color 0.5s ease, color 0.5s ease;
+    }
+
+    a:hover { border-bottom-color: var(--gold-wordmark-light); }
+
+    a:focus-visible {
+      outline: 1px solid rgba(216, 169, 100, 0.85);
+      outline-offset: 4px;
+      border-radius: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      main { animation-duration: 0.6s; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="scene" aria-hidden="true"></div>
+
+  <main>
+    <img class="emblem" src="/assets/remoire-r.svg" alt="" width="837" height="870">
+    <h1>This path leads nowhere</h1>
+    <a href="/">Return to the moon</a>
+  </main>
+</body>
+
+</html>

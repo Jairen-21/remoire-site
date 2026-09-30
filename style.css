@@ -1,0 +1,1549 @@
+/* =========================================================
+   REMOIRE — THE MOON
+   ---------------------------------------------------------
+   How this works:
+   script.js only measures scroll and writes a handful of
+   0 → 1 values (CSS custom properties) onto .brand-sticky.
+   Everything visual — sizes, fades, positions — is decided
+   here in CSS from those values. Media queries therefore
+   keep working during the animation.
+========================================================= */
+
+
+/* =========================================
+   FONTS
+   Cormorant Garamond, the serif closest to the wordmark.
+   From the REMOIRE design system. Served from this site
+   (no Google request). SIL Open Font License 1.1.
+========================================= */
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("assets/fonts/CormorantGaramond-300-normal.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("assets/fonts/CormorantGaramond-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("assets/fonts/CormorantGaramond-600-normal.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("assets/fonts/CormorantGaramond-500-normal.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+/* =========================================
+   TOKENS
+   Names and values match the REMOIRE design system.
+========================================= */
+
+:root {
+  color-scheme: dark;
+
+  /* Colour */
+  --black: #000000;
+  --lunar-100: #e4e0d8;                        /* primary text      */
+  --lunar-300: #b3aea6;                        /* secondary text    */
+  --lunar-500: #7c7870;                        /* placeholders, small print */
+  --gold-300: #edc281;                         /* hover             */
+  --gold-400: #d8a964;                         /* focus, caret      */
+  --gold-500: #c39652;                         /* the REMOIRE gold (wordmark) */
+  --gold-wordmark-light: #e7c380;              /* the wordmark's highlight */
+  --gold-700: #a37336;                         /* placeholders */
+  --gold-hairline: rgba(195, 150, 82, 0.38);   /* rules, underlines */
+  --gold-focus: rgba(216, 169, 100, 0.85);     /* focused underline */
+
+  /* Type families */
+  --font-display: "Cormorant Garamond", Garamond, "Times New Roman", serif;
+
+  /* Tracking */
+  --tracking-wordmark: 0.62em;
+  --tracking-display: 0.4em;
+  --tracking-label: 0.4em;
+  --tracking-caption: 0.5em;
+
+  /* Spacing */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 48px;
+  --space-5: 96px;
+  --space-6: 160px;
+
+  /* Scroll length of the whole sequence.
+     Long on purpose: every beat gets room to breathe. */
+  --scene-length: 1600vh;
+}
+
+
+/* =========================================
+   RESET
+========================================= */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--black);
+  /* clip (not hidden) = no horizontal scroll AND sticky keeps working */
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+body {
+  color: var(--lunar-100);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+img,
+svg {
+  display: block;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+
+/* =========================================
+   MAIN SCROLL SEQUENCE
+========================================= */
+
+.brand-scene {
+  position: relative;
+  height: var(--scene-length);
+  background: var(--black);
+}
+
+.brand-sticky {
+  /* ---- Progress values (written by script.js, 0 → 1) ---- */
+  --r: 0;            /* R growth                     */
+  --word: 0;         /* wordmark arrival             */
+  --lunar: 0;        /* lunar world emerging         */
+  --zoom: 0;         /* slow push into the landscape */
+  --brand-out: 0;    /* identity leaving             */
+  --dim: 0;          /* environment settles darker   */
+  --bottle-in: 0;    /* silhouette appears           */
+  --lit: 0;          /* light reaches the bottle     */
+  --joined: 0;       /* 0 → 1 once the visitor joins */
+  --px: 0;           /* pointer / tilt, -1 → 1 (depth) */
+  --py: 0;
+  --soon: 0;         /* COMING SOON                  */
+  --list: 0;         /* waiting list                 */
+  --cue: 1;          /* scroll hint (1 = visible)    */
+
+  /* 1 = movement on, 0 = reduced motion (fades only) */
+  --motion: 1;
+
+  /* Gap between the stage and the *visible* viewport on
+     mobile browsers with collapsing toolbars. Content sits
+     above it so nothing hides behind the Safari toolbar. */
+  --toolbar-gap: 0px;
+
+  position: sticky;
+  top: 0;
+
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
+
+  overflow: hidden;
+  background: var(--black);
+  isolation: isolate;
+}
+
+@supports (height: 100svh) {
+  .brand-sticky {
+    --toolbar-gap: calc(100lvh - 100svh);
+  }
+}
+
+
+/* =========================================
+   LUNAR ENVIRONMENT
+========================================= */
+
+.lunar-background {
+  --bg-position: center center;
+  --zoom-origin: 50% 72%;   /* the crater floor, where the bottle stands */
+
+  position: absolute;
+  inset: -18px;      /* a little overscan, so depth movement never shows an edge */
+  z-index: 1;
+
+  background-color: var(--black);
+  background-image: url("assets/moon-background.webp");
+  background-size: cover;
+  background-position: var(--bg-position);
+  background-repeat: no-repeat;
+
+  /* Very slow push towards the bottle's position.
+     Raster image, so scaling does not affect sharpness. */
+  transform:
+    translate3d(calc(var(--px) * -10px), calc(var(--py) * -6px), 0)
+    scale(calc(1 + var(--zoom) * 0.06 * var(--motion)));
+  transform-origin: var(--zoom-origin);
+
+  will-change: transform;
+}
+
+/*
+  The reveal is done by this one layer alone: black lifts
+  away slowly (eyes adjusting). Later it settles back a
+  little so the bottle becomes the brightest thing on screen.
+*/
+.lunar-darkness {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+
+  background: var(--black);
+  opacity: calc(1 - var(--lunar) + var(--dim) * 0.34);
+
+  pointer-events: none;
+  will-change: opacity;
+}
+
+
+/* =========================================
+   REMOIRE IDENTITY
+========================================= */
+
+.brand-lockup {
+  /* Sizes of the composition */
+  --r-start: clamp(80px, 12vh, 120px);
+  --r-end: clamp(220px, 40vh, 400px);
+  --wm-width: clamp(300px, 34vw, 540px);
+  --wm-gap: clamp(24px, 4.6vh, 46px);
+
+  /* Wordmark height = width × (167 / 1850) */
+  --wm-height: calc(var(--wm-width) * 0.0903);
+
+  /* When the wordmark arrives, the whole lockup lifts by half
+     its added height so R + REMOIRE ends up optically centred. */
+  --lift: calc((var(--wm-gap) + var(--wm-height)) / 2);
+
+  position: absolute;
+  inset: 0 0 var(--toolbar-gap) 0;
+  z-index: 3;
+
+  display: grid;
+  place-items: center;
+
+  opacity: calc(1 - var(--brand-out));
+  pointer-events: none;
+}
+
+.lockup-inner {
+  position: relative;
+  transform: translateY(calc(var(--lift) * var(--word) * -1));
+}
+
+/* Arrival: black first, then the R fades up once loaded */
+.js .lockup-inner {
+  opacity: 0;
+  transition: opacity 2.4s cubic-bezier(0.33, 0, 0.2, 1) 0.2s;
+}
+
+.js.is-ready .lockup-inner {
+  opacity: 1;
+}
+
+
+/* R — animated by its rendered height (vector re-draw, never a
+   blurry transform scale). The R stays perfectly centred. */
+
+.remoire-r {
+  width: auto;
+  height: calc(var(--r-start) + (var(--r-end) - var(--r-start)) * var(--r));
+}
+
+
+/* REMOIRE — positioned relative to the R, so it never
+   pushes the R off centre while it is still invisible. */
+
+.wordmark-heading {
+  position: absolute;
+  top: calc(100% + var(--wm-gap));
+  left: 50%;
+  width: var(--wm-width);
+  margin-left: calc(var(--wm-width) / -2);   /* no -50% transform: stays on whole pixels */
+  font-size: 0;
+  line-height: 0;
+}
+
+.remoire-wordmark {
+  width: 100%;
+  height: auto;
+
+  opacity: var(--word);
+  transform: translateY(calc((1 - var(--word)) * 14px * var(--motion)));
+}
+
+
+/* =========================================
+   THE MOON — BOTTLE
+========================================= */
+
+.bottle {
+  transform: translate3d(calc(var(--px) * -14px), calc(var(--py) * -7px), 0);
+  /* Standing on the crater floor */
+  --bottle-width: min(36vh, 26vw);
+  --bottle-x: 50%;
+  --bottle-bottom: 30vh;              /* where the base meets the floor */
+
+  /* The render's golden base glow runs 5.2% below the base itself,
+     so the box drops by that much to put the base on the floor. */
+  --bottle-height: calc(var(--bottle-width) * 1128 / 900);
+  --base-inset: 5.2%;
+
+  position: absolute;
+  z-index: 4;
+  left: calc(var(--bottle-x) - var(--bottle-width) / 2);
+  bottom: calc(var(--bottle-bottom) + var(--toolbar-gap) - var(--bottle-height) * 0.052);
+  width: var(--bottle-width);
+  aspect-ratio: 900 / 1128;
+
+  pointer-events: none;
+}
+
+/* Clip line = the crater floor. Anything below it is "inside"
+   the crater. The bottom edge is feathered so the emergence line
+   is soft and melts into the smoke rather than a hard cut. */
+.bottle-rise {
+  position: absolute;
+  inset: -20% 0 0 0;   /* headroom above; clip only at the base */
+
+  /* Transparent below the base line (5.2% of the bottle = 4.3% of
+     this taller box), feathered just above it. */
+  -webkit-mask-image: linear-gradient(to top, transparent 0, transparent 4.3%, #000 8.5%);
+          mask-image: linear-gradient(to top, transparent 0, transparent 4.3%, #000 8.5%);
+}
+
+/* The bottle rises up out of the crater */
+.bottle-form {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100% / 1.2);   /* the bottle's own box inside the headroom */
+
+  transform: translateY(calc((1 - var(--bottle-in)) * 104%));
+}
+
+.bottle-lit {
+  filter: brightness(calc(1 + var(--joined) * 0.6));
+}
+
+/* Warm light behind the bottle, a reward for joining */
+.bottle-aura {
+  position: absolute;
+  left: -45%;
+  right: -45%;
+  top: -10%;
+  bottom: -5%;
+  background: radial-gradient(closest-side, rgba(231, 195, 128, 0.3), rgba(216, 169, 100, 0.1) 55%, rgba(216, 169, 100, 0));
+  opacity: var(--joined);
+}
+
+.bottle img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Silhouette: same render, pushed to black. Fading it reveals the
+   real lighting underneath — rim first, then surface. It never
+   fully leaves: the bottle stays partly in shadow. */
+.bottle-shadow {
+  filter: brightness(0);
+  opacity: calc((1 - var(--lit) * 0.85) * (1 - var(--joined)));
+  will-change: opacity;
+}
+
+/* Contact shadow — seats the bottle on the lunar ground */
+.bottle::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: calc(var(--base-inset) - 6%);
+  height: 12%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+  opacity: calc(var(--bottle-in) * var(--bottle-in));
+}
+
+/* The bottle's golden base light spilling onto the crater floor.
+   Arrives with the light, like the glow in the render itself. */
+.bottle::after {
+  content: "";
+  position: absolute;
+  left: -18%;
+  right: -18%;
+  bottom: calc(var(--base-inset) - 7%);
+  height: 14%;
+  background: radial-gradient(closest-side, rgba(231, 195, 128, 0.42), rgba(216, 169, 100, 0.12) 55%, rgba(216, 169, 100, 0));
+  opacity: var(--lit);
+  transform: scale(calc(1 + var(--joined) * 0.35), calc(1 + var(--joined) * 0.6));
+}
+
+
+/* =========================================
+   SMOKE
+   Drawn by script.js on two canvases: one behind the
+   bottle, one low in front of it, so the bottle rises
+   through the smoke rather than sitting on top of it.
+========================================= */
+
+.smoke {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.smoke-back {
+  z-index: 3;
+  transform: translate3d(calc(var(--px) * -13px), calc(var(--py) * -7px), 0);
+}
+
+.smoke-front {
+  z-index: 4;   /* same layer as the bottle, but later in the page = in front */
+  transform: translate3d(calc(var(--px) * -22px), calc(var(--py) * -11px), 0);
+}
+
+
+/* =========================================
+   THE MOON — COPY
+========================================= */
+
+.moon-copy {
+  position: absolute;
+  inset: 0 0 var(--toolbar-gap) 0;
+  z-index: 5;
+
+  /* Symmetrical, like the crater: headline in the sky above the
+     bottle, waiting list on the dark ground below it. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: clamp(64px, 11vh, 120px) var(--space-3) clamp(20px, 3.5vh, 40px);
+  text-align: center;
+
+  pointer-events: none;
+}
+
+/* A soft pool of shadow under the form so it reads over the
+   textured rocks. Shaped like natural darkness, not a box. */
+.moon-copy::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 50% 80% at 50% 100%,
+      rgba(0, 0, 0, 0.9) 0%,
+      rgba(0, 0, 0, 0.72) 40%,
+      rgba(0, 0, 0, 0) 100%);
+  opacity: var(--list);
+}
+
+.waitlist {
+  text-shadow: 0 0 14px rgba(0, 0, 0, 0.9);
+}
+
+/* Set like the wordmark: same serif, same gold, same wide spacing,
+   with the wordmark's soft metallic fall from highlight to gold. */
+.moon-soon {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(26px, 2.8vw, 42px);
+  line-height: 1.15;
+  letter-spacing: var(--tracking-wordmark);
+  text-transform: uppercase;
+  text-wrap: balance;
+  margin-right: calc(var(--tracking-wordmark) * -1);   /* true centre */
+
+  color: var(--gold-500);
+  background: linear-gradient(to bottom, var(--gold-wordmark-light) 15%, var(--gold-500) 75%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  opacity: var(--soon);
+  transform: translateY(calc((1 - var(--soon)) * 12px * var(--motion)));
+}
+
+
+/* =========================================
+   SCROLL HINT
+   Appears after the R has arrived, leaves the
+   moment the visitor starts scrolling.
+========================================= */
+
+.scroll-cue {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: calc(clamp(24px, 4.5vh, 44px) + var(--toolbar-gap));
+  width: 120px;
+  margin-left: -60px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+
+  opacity: var(--cue);
+  pointer-events: none;
+}
+
+.brand-sticky.is-cue-hidden .scroll-cue {
+  visibility: hidden;
+}
+
+.js .scroll-cue > * {
+  opacity: 0;
+  transition: opacity 1.8s ease 2.4s;
+}
+
+.js.is-ready .scroll-cue > * {
+  opacity: 1;
+}
+
+.scroll-cue-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: var(--tracking-caption);
+  margin-right: calc(var(--tracking-caption) * -1);
+  text-transform: uppercase;
+  color: var(--gold-500);
+}
+
+.scroll-cue-line {
+  position: relative;
+  width: 1px;
+  height: 44px;
+  overflow: hidden;
+  background: rgba(195, 150, 82, 0.18);
+}
+
+/* A slow point of light travelling down the hairline */
+.scroll-cue-line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 45%;
+  background: linear-gradient(to bottom, rgba(216, 169, 100, 0), rgba(216, 169, 100, 0.9));
+  transform: translateY(-100%);
+  animation: cue-travel 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+@keyframes cue-travel {
+  0%   { transform: translateY(-100%); }
+  70%  { transform: translateY(230%); }
+  100% { transform: translateY(230%); }
+}
+
+
+/* =========================================
+   FILM GRAIN
+   Barely there. Only present once the lunar world
+   exists, so the opening black stays pure black.
+========================================= */
+
+.grain {
+  position: absolute;
+  inset: -50%;
+  z-index: 7;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.2 -0.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+
+  opacity: calc(var(--lunar) * 0.07);
+  pointer-events: none;
+
+  animation: grain-shift 0.9s steps(6) infinite;
+}
+
+@keyframes grain-shift {
+  0%   { transform: translate(0, 0); }
+  17%  { transform: translate(-7%, 4%); }
+  33%  { transform: translate(5%, -6%); }
+  50%  { transform: translate(-3%, 8%); }
+  67%  { transform: translate(8%, 3%); }
+  83%  { transform: translate(-6%, -5%); }
+  100% { transform: translate(0, 0); }
+}
+
+
+/* =========================================
+   WAITING LIST
+========================================= */
+
+.waitlist {
+  width: min(440px, 100%);
+  text-align: left;
+
+  opacity: var(--list);
+  transform: translateY(calc((1 - var(--list)) * 10px * var(--motion)));
+
+  pointer-events: auto;
+}
+
+/* Not reachable by keyboard or pointer until it can be seen */
+.brand-sticky.is-list-hidden .waitlist {
+  visibility: hidden;
+}
+
+.waitlist-label {
+  text-align: center;
+  margin-right: calc(var(--tracking-label) * -1);   /* true centre */
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.4;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.waitlist-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 18px;
+  border-bottom: 1px solid var(--gold-hairline);
+  transition: border-color 0.6s ease;
+}
+
+.waitlist-field:focus-within {
+  border-bottom-color: var(--gold-focus);
+}
+
+.waitlist input {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 0 17px;
+
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(21px, 1.7vw, 26px);   /* ≥16px — prevents iOS Safari zooming the page on focus */
+  letter-spacing: 0.06em;
+  color: var(--gold-wordmark-light);
+  caret-color: var(--gold-400);
+  text-shadow: 0 0 10px rgba(216, 169, 100, 0.35);
+}
+
+.waitlist input::placeholder {
+  color: var(--gold-400);
+  font-weight: 500;
+  opacity: 1;
+}
+
+/* Keep Chrome/Safari autofill from painting a pale box */
+.waitlist input:-webkit-autofill {
+  -webkit-text-fill-color: var(--gold-wordmark-light);
+  -webkit-box-shadow: 0 0 0 1000px var(--black) inset;
+  transition: background-color 9999s;
+}
+
+.waitlist-submit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-right: -8px;
+
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--gold-500);
+  transition: color 0.5s ease, transform 0.6s ease;
+}
+
+.waitlist-submit svg {
+  width: 36px;
+  height: 14px;
+}
+
+.waitlist-submit:hover {
+  color: var(--gold-400);
+  transform: translateX(4px);
+}
+
+.waitlist-submit:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;   /* radius-soft */
+  outline-offset: -6px;
+}
+
+.waitlist-status {
+  text-align: center;
+  margin-top: 10px;
+
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+}
+
+/* Empty status takes no space */
+.waitlist-status:empty {
+  display: none;
+}
+
+.waitlist-consent {
+  margin-top: 10px;
+  text-align: center;
+
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: var(--gold-500);
+}
+
+/* ---- Engraving: typed letters glow, then sink into the dust ---- */
+
+.engrave {
+  position: absolute;
+  left: 0;
+  right: 52px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+  white-space: pre;
+  pointer-events: none;
+
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(21px, 1.7vw, 26px);
+  letter-spacing: 0.06em;
+  color: var(--gold-wordmark-light);
+}
+
+.engrave span {
+  display: inline-block;
+  animation: engrave 2s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes engrave {
+  0%   { color: var(--gold-wordmark-light); text-shadow: 0 0 10px rgba(216, 169, 100, 0.35); transform: none; opacity: 1; }
+  30%  { color: #fff3d6; text-shadow: 0 0 6px rgba(253, 232, 187, 1), 0 0 18px rgba(231, 195, 128, 0.9), 0 0 42px rgba(216, 169, 100, 0.55); transform: none; opacity: 1; }
+  100% { color: var(--gold-500); text-shadow: 0 0 4px rgba(216, 169, 100, 0.2); transform: translateY(18px) scaleY(0.4); opacity: 0; }
+}
+
+.waitlist.is-engraving input,
+.waitlist.is-done input {
+  color: transparent;
+  text-shadow: none;
+}
+
+.waitlist.is-engraving .waitlist-submit {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.waitlist.is-engraving input::placeholder,
+.waitlist.is-done input::placeholder {
+  color: transparent;
+}
+
+/* The underline catches the light as the letters sink */
+.waitlist.is-engraving .waitlist-field {
+  border-bottom-color: rgba(253, 232, 187, 0.9);
+  transition: border-color 0.4s ease;
+}
+
+/* ---- Label: crossfades to the name prompt, then leaves ---- */
+
+/* Both lines share one grid cell, so the label is as tall as the
+   longer line and nothing overlaps the field if a line wraps. */
+.waitlist-label {
+  position: relative;
+  display: grid;
+  transition: opacity 1.2s ease;
+}
+
+.label-email,
+.label-name {
+  grid-area: 1 / 1;
+  align-self: end;
+  text-wrap: balance;
+  transition: opacity 1s ease;
+}
+
+/* Two beats: "You found it." then, a moment later, "Now sign it." */
+.label-name .ln-1,
+.label-name .ln-2 {
+  display: block;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+.waitlist.is-name .label-email { opacity: 0; transition-duration: 0.7s; }
+.waitlist.is-name .ln-1 { opacity: 1; transition-delay: 0.8s; }
+.waitlist.is-name .ln-2 { opacity: 1; transition-delay: 1.9s; }
+
+/* Once they have joined, the line leaves so the message isn't repeated */
+.waitlist.is-done .waitlist-label { opacity: 0; }
+
+
+/* ---- Name step ---- */
+
+.waitlist #waitlist-name {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(100% - 52px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 1s ease;
+}
+
+.waitlist.is-name #waitlist-name {
+  opacity: 1;
+  visibility: visible;
+}
+
+.waitlist.is-name #waitlist-email {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.waitlist-skip {
+  margin-left: 22px;
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+  transition: color 0.4s ease;
+}
+
+.waitlist-skip:hover { color: var(--gold-wordmark-light); }
+
+.waitlist-skip:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;
+}
+
+
+
+.waitlist.is-name .waitlist-consent,
+.waitlist.is-done .waitlist-skip {
+  display: none;
+}
+
+
+/* ---- Type or draw ---- */
+
+/* Only takes up space once the name step begins */
+.sign-modes {
+  display: none;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.waitlist.is-name .sign-modes {
+  display: flex;
+  animation: row-in 1s ease 0.6s both;
+}
+
+@keyframes row-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.waitlist.is-done .sign-modes {
+  display: none;
+}
+
+.sign-mode,
+.sign-clear {
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-transform: uppercase;
+  color: var(--gold-700);
+  transition: color 0.4s ease, border-color 0.4s ease;
+}
+
+.sign-mode[aria-pressed="true"] {
+  color: var(--gold-wordmark-light);
+  border-bottom-color: var(--gold-hairline);
+}
+
+.sign-mode:hover,
+.sign-clear:hover {
+  color: var(--gold-wordmark-light);
+}
+
+.sign-mode:focus-visible,
+.sign-clear:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;
+}
+
+.sign-sep {
+  color: var(--gold-700);
+}
+
+.sign-clear {
+  display: none;
+  margin-left: 18px;
+}
+
+.waitlist.is-draw .sign-clear {
+  display: inline-block;
+}
+
+/* The pad takes the field's place while drawing */
+.sign-pad,
+.sign-hint {
+  position: absolute;
+  left: 0;
+  right: 52px;
+  top: 0;
+  bottom: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.8s ease;
+}
+
+.sign-pad {
+  width: calc(100% - 52px);
+  height: 100%;
+  touch-action: none;      /* drawing must not scroll the page */
+  cursor: crosshair;
+}
+
+.sign-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(20px, 1.6vw, 24px);
+  letter-spacing: 0.04em;
+  color: var(--gold-700);
+}
+
+.waitlist.is-draw .waitlist-field {
+  height: clamp(84px, 11vh, 100px);
+  margin-top: 12px;
+  transition: height 0.6s ease, border-color 0.6s ease;
+}
+
+.waitlist.is-draw .sign-pad,
+.waitlist.is-draw .sign-hint {
+  opacity: 1;
+  visibility: visible;
+}
+
+.waitlist.is-draw.has-ink .sign-hint {
+  opacity: 0;
+}
+
+.waitlist.is-draw #waitlist-name {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* The drawn signature glows, then sinks into the dust */
+.sign-pad.is-sinking {
+  animation: pad-sink 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes pad-sink {
+  0%   { filter: brightness(1); transform: none; opacity: 1; }
+  30%  { filter: brightness(1.8) drop-shadow(0 0 8px rgba(253, 232, 187, 0.9)); transform: none; opacity: 1; }
+  100% { filter: brightness(1); transform: translateY(18px) scaleY(0.4); opacity: 0; }
+}
+
+/* A drawn signature on the bottle draws itself, glint first */
+.bottle-signature path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.bottle-signature .sig-glint {
+  stroke: #fff3d6;
+  animation: sig-draw 2.4s cubic-bezier(0.45, 0, 0.25, 1) forwards, sig-glint-fade 3.4s ease forwards;
+}
+
+.bottle-signature .sig-cut {
+  stroke: #7a5b2e;
+  animation: sig-draw 2.4s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+
+@keyframes sig-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sig-glint-fade {
+  0%, 55% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+
+/* ---- The name, engraved on the bottle ---- */
+
+.bottle-name {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bottle-name text {
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+/* Settled engraving: dim gold, cut into the surface */
+.bottle-name .nl-cut {
+  fill: #7a5b2e;
+  opacity: 0;
+  animation: nl-cut 2.2s ease forwards;
+}
+
+/* The bright glint that passes as each letter is cut */
+.bottle-name .nl-glint {
+  fill: #fff3d6;
+  opacity: 0;
+  animation: nl-glint 2.2s ease forwards;
+}
+
+@keyframes nl-glint {
+  0%   { opacity: 0; }
+  22%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes nl-cut {
+  0%   { opacity: 0; }
+  25%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+
+/* ---- After joining: save your moon ---- */
+
+.waitlist-after {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.waitlist.is-done .waitlist-after {
+  display: flex;
+  animation: row-in 1.6s ease 2.4s both;
+}
+
+.waitlist.is-returning .waitlist-after {
+  animation-delay: 0.4s;
+}
+
+.save-moon {
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  transition: color 0.4s ease, border-color 0.4s ease;
+}
+
+.save-moon {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.35em;
+  margin-right: -0.35em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+  border-bottom: 1px solid var(--gold-hairline);
+}
+
+.save-moon:hover {
+  border-bottom-color: var(--gold-wordmark-light);
+}
+
+.start-again {
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  color: var(--gold-700);
+  transition: color 0.4s ease;
+}
+
+.start-again:hover {
+  color: var(--gold-500);
+}
+
+.start-again:focus-visible,
+.save-moon:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;
+}
+
+.waitlist.is-done .waitlist-consent {
+  display: none;
+}
+
+/* A returning visitor's engraving is already there: no animation */
+.bottle-name.is-static .nl-glint,
+.bottle-name.is-static .sig-glint {
+  display: none;
+}
+
+.bottle-name.is-static .nl-cut {
+  animation: none;
+  opacity: 1;
+}
+
+.bottle-name.is-static .sig-cut {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
+
+/* =========================================
+   SAVE YOUR MOON
+   A preview of the Stories image, with save and
+   share. Also works as a fallback wherever the
+   browser can't download: press and hold to save.
+========================================= */
+
+.moon-share {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.9);
+  animation: row-in 0.8s ease both;
+}
+
+.moon-share[hidden] {
+  display: none;
+}
+
+.moon-share-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-height: 100%;
+  text-align: center;
+}
+
+.moon-share-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.45em;
+  margin-right: -0.45em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.moon-share-img {
+  display: block;
+  height: min(68vh, 720px);
+  max-width: 100%;
+  width: auto;
+  aspect-ratio: 9 / 16;
+  object-fit: contain;
+  box-shadow: 0 0 0 1px rgba(195, 150, 82, 0.25);
+  background: var(--black);
+}
+
+.moon-share-hint {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--gold-500);
+}
+
+.moon-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 22px;
+}
+
+.moon-share-actions button {
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--gold-hairline);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em;
+  text-transform: uppercase;
+  color: var(--gold-wordmark-light);
+}
+
+.moon-share-actions .moon-share-close {
+  border-bottom-color: transparent;
+  color: var(--gold-700);
+}
+
+.moon-share-actions button:hover {
+  border-bottom-color: var(--gold-wordmark-light);
+}
+
+.moon-share-actions button[hidden] {
+  display: none;
+}
+
+.moon-share-actions button:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  border-radius: 2px;
+}
+
+
+/* ---- Joined ---- */
+
+.waitlist-thanks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: normal;
+  font-size: clamp(18px, 1.5vw, 22px);
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  color: var(--gold-wordmark-light);
+
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 1.8s ease, transform 1.8s ease;
+  pointer-events: none;
+}
+
+.waitlist.is-done .waitlist-thanks {
+  opacity: 1;
+  transform: none;
+}
+
+.waitlist.is-done .waitlist-field {
+  border-bottom-color: rgba(195, 150, 82, 0);
+  transition: border-color 1.6s ease;
+}
+
+.waitlist.is-done .waitlist-consent {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+/* Success message is shown in the field; the status line only
+   speaks it to screen readers */
+.waitlist.is-done .waitlist-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.waitlist.is-done .waitlist-field input,
+.waitlist.is-done .waitlist-field button {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+
+/* =========================================
+   MOBILE / PORTRAIT
+   Recomposed rather than shrunk: title up top,
+   bottle on the ground, waiting list below.
+========================================= */
+
+@media (max-width: 760px), (max-aspect-ratio: 4/5) {
+
+  :root {
+    --scene-length: 1300vh;
+  }
+
+  .lunar-background {
+    --zoom-origin: 50% 72%;
+  }
+
+  .brand-lockup {
+    --r-start: clamp(70px, 11vh, 105px);
+    --r-end: clamp(170px, 30vh, 300px);
+    --wm-width: min(76vw, 420px);
+    --wm-gap: clamp(20px, 3.6vh, 36px);
+  }
+
+  .bottle {
+    --bottle-width: min(52vw, 28.5vh, 315px);
+    --bottle-x: 50%;
+    --bottle-bottom: 29vh;
+  }
+
+  .moon-copy {
+    padding-bottom: clamp(18px, 3vh, 40px);
+  }
+
+  .moon-copy::before {
+    height: 40%;
+    background:
+      radial-gradient(ellipse 90% 80% at 50% 100%,
+        rgba(0, 0, 0, 0.9) 0%,
+        rgba(0, 0, 0, 0.7) 45%,
+        rgba(0, 0, 0, 0) 100%);
+  }
+
+  .moon-soon {
+    font-size: clamp(18px, 5.4vw, 24px);
+  }
+
+  .waitlist {
+    width: min(360px, 100%);
+  }
+
+  .waitlist-field {
+    margin-top: 14px;
+  }
+
+  .waitlist input {
+    padding: 12px 0 13px;
+  }
+
+  .waitlist-status {
+    margin-top: 10px;
+  }
+
+  .waitlist-consent {
+    margin-top: 6px;
+    font-size: 13px;
+  }
+
+  .waitlist.is-draw .waitlist-field {
+    height: 66px;
+  }
+
+  .sign-modes {
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .sign-mode,
+  .sign-clear,
+  .waitlist-skip {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    margin-right: -0.22em;
+  }
+
+  .sign-clear { margin-left: 10px; }
+  .waitlist-skip { margin-left: 14px; }
+
+  .waitlist-label {
+    font-size: clamp(14px, 4.1vw, 17px);
+  }
+
+}
+
+
+/* =========================================
+   REDUCED MOTION
+   Same sequence, driven by scroll, but only
+   fades: no growth, no rising, no zoom.
+========================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  :root {
+    --scene-length: 800vh;
+  }
+
+  .brand-sticky {
+    --motion: 0;
+  }
+
+  .brand-lockup {
+    --r-start: var(--r-end);
+  }
+
+  .lockup-inner {
+    transform: translateY(calc(var(--lift) * -1));
+  }
+
+  .js .lockup-inner {
+    transition-duration: 1.2s;
+  }
+
+  .scroll-cue-line::after,
+  .grain {
+    animation: none;
+  }
+
+  .bottle-form {
+    transform: none;
+    opacity: var(--bottle-in);
+  }
+
+  .engrave span {
+    animation-name: engrave-still;
+  }
+
+  .bottle-name .nl-glint,
+  .bottle-signature .sig-glint {
+    animation: none;
+    opacity: 0;
+  }
+
+  .bottle-signature .sig-cut {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .bottle-name .nl-cut {
+    animation-name: engrave-still;
+    animation-direction: reverse;
+  }
+
+  @keyframes engrave-still {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  .waitlist-field,
+  .waitlist-submit {
+    transition: none;
+  }
+
+}
+
+
+/* =========================================
+   NO JAVASCRIPT
+   Show the final, complete frame as a
+   normal page.
+========================================= */
+
+.no-js .brand-scene {
+  height: auto;
+}
+
+.no-js .brand-sticky {
+  position: relative;
+  --r: 1;
+  --word: 1;
+  --lunar: 1;
+  --brand-out: 1;
+  --dim: 1;
+  --bottle-in: 1;
+  --lit: 1;
+  --soon: 1;
+  --list: 1;
+  --cue: 0;
+}

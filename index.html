@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <title>REMOIRE — The Moon</title>
+  <meta name="description" content="REMOIRE. THE MOON — coming soon. Join the waiting list.">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+
+  <!-- Icons: browser tab and phone home screen -->
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="assets/icons/icon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="assets/icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
+  <!-- Share preview (WhatsApp, iMessage, Instagram, LinkedIn, X…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="REMOIRE">
+  <meta property="og:title" content="REMOIRE — The Moon">
+  <meta property="og:description" content="THE MOON. Coming soon.">
+  <meta property="og:url" content="https://remoire.co/">
+  <meta property="og:image" content="https://remoire.co/assets/share-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="THE MOON bottle standing in a lunar crater, beneath the REMOIRE wordmark.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://remoire.co/assets/share-preview.jpg">
+
+  <!-- Swap .no-js for .js before first paint (prevents a flash of the wrong state) -->
+  <script>document.documentElement.className = "js";</script>
+
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+
+<body>
+
+  <main>
+
+    <section class="brand-scene" aria-label="REMOIRE — The Moon">
+
+      <div class="brand-sticky">
+
+        <!-- ============ LUNAR ENVIRONMENT (one single background) ============ -->
+        <div class="lunar-background" aria-hidden="true"></div>
+        <div class="lunar-darkness" aria-hidden="true"></div>
+
+
+        <!-- ============ REMOIRE IDENTITY ============ -->
+        <div class="brand-lockup">
+          <div class="lockup-inner">
+
+            <img
+              src="assets/remoire-r.svg"
+              alt=""
+              class="remoire-r"
+              width="837"
+              height="870"
+            >
+
+            <h1 class="wordmark-heading">
+              <img
+                src="assets/remoire-wordmark.svg"
+                alt="REMOIRE"
+                class="remoire-wordmark"
+                width="1850"
+                height="167"
+              >
+            </h1>
+
+          </div>
+        </div>
+
+
+        <!-- ============ SMOKE (behind the bottle) ============ -->
+        <canvas class="smoke smoke-back" aria-hidden="true"></canvas>
+
+
+        <!-- ============ THE MOON — BOTTLE ============ -->
+        <div class="bottle" aria-hidden="true">
+          <!-- Gold light behind the bottle, only for those who have joined -->
+          <div class="bottle-aura"></div>
+          <!-- Clips at the crater floor, so the bottle rises up out of it -->
+          <div class="bottle-rise">
+            <div class="bottle-form">
+              <img
+                src="assets/Moon%20transparent.png"
+                alt=""
+                class="bottle-lit"
+                width="900"
+                height="1128"
+                decoding="async"
+                fetchpriority="low"
+              >
+              <!-- Same image, rendered as a silhouette. Fading it out reveals the lit bottle. -->
+              <img
+                src="assets/Moon%20transparent.png"
+                alt=""
+                class="bottle-shadow"
+                width="900"
+                height="1128"
+                decoding="async"
+                fetchpriority="low"
+              >
+
+              <!-- The visitor's name, engraved around the bottle -->
+              <svg class="bottle-name" viewBox="0 0 900 1128" aria-hidden="true" focusable="false">
+                <defs>
+                  <filter id="name-cut" x="-20%" y="-40%" width="140%" height="180%">
+                    <feFlood flood-color="#000000" flood-opacity="0.85"/>
+                    <feComposite in2="SourceAlpha" operator="in"/>
+                    <feOffset dy="-2" result="edge-dark"/>
+                    <feFlood flood-color="#e7c380" flood-opacity="0.75"/>
+                    <feComposite in2="SourceAlpha" operator="in"/>
+                    <feOffset dy="1.6" result="edge-light"/>
+                    <feMerge>
+                      <feMergeNode in="edge-light"/>
+                      <feMergeNode in="edge-dark"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                  <filter id="name-glint" x="-60%" y="-120%" width="220%" height="340%">
+                    <feGaussianBlur stdDeviation="6" result="blur"/>
+                    <feMerge>
+                      <feMergeNode in="blur"/>
+                      <feMergeNode in="blur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <!-- A latitude line across the lower front of the sphere -->
+                <path class="bottle-name-path" id="bottle-name-path" d="M 110 800 A 350 62 0 0 0 790 800" fill="none"/>
+                <g class="bottle-name-letters"></g>
+                <g class="bottle-signature"></g>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- ============ SMOKE (in front, low around the base) ============ -->
+        <canvas class="smoke smoke-front" aria-hidden="true"></canvas>
+
+
+        <!-- ============ SCROLL HINT (fades as soon as scrolling starts) ============ -->
+        <div class="scroll-cue" aria-hidden="true">
+          <span class="scroll-cue-label">Scroll</span>
+          <span class="scroll-cue-line"></span>
+        </div>
+
+
+        <!-- ============ THE MOON — COPY + WAITING LIST ============ -->
+        <div class="moon-copy">
+
+          <div class="moon-heading">
+            <h2 class="moon-soon">Coming Soon</h2>
+          </div>
+
+          <form class="waitlist" novalidate>
+            <p class="waitlist-label" id="waitlist-label">
+              <span class="label-email">When the moon rises</span>
+              <!-- Shown after the email, asking for the name to engrave -->
+              <span class="label-name" aria-hidden="true"><span class="ln-1">You found it.</span> <span class="ln-2">Now sign it.</span></span>
+            </p>
+
+            <div class="waitlist-field">
+              <label for="waitlist-email" class="visually-hidden">Email address</label>
+              <input
+                type="email"
+                id="waitlist-email"
+                name="email"
+                placeholder="Tell me by email."
+                autocomplete="email"
+                inputmode="email"
+                autocapitalize="off"
+                spellcheck="false"
+                required
+                aria-describedby="waitlist-label waitlist-status"
+              >
+              <label for="waitlist-name" class="visually-hidden">Your name, to engrave on the bottle</label>
+              <input
+                type="text"
+                id="waitlist-name"
+                name="name"
+                placeholder="Your name"
+                autocomplete="given-name"
+                autocapitalize="words"
+                spellcheck="false"
+                maxlength="14"
+                tabindex="-1"
+              >
+
+              <button type="submit" class="waitlist-submit" aria-label="Send">
+                <svg viewBox="0 0 32 12" aria-hidden="true" focusable="false">
+                  <path d="M0 6h30M25 1l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </button>
+
+              <!-- Signature pad, for signing with a finger or mouse -->
+              <canvas class="sign-pad" aria-label="Draw your signature"></canvas>
+              <span class="sign-hint" aria-hidden="true">Sign here</span>
+
+              <!-- Typed letters are copied here on submit, then glow and sink into the dust -->
+              <div class="engrave" aria-hidden="true"></div>
+
+              <!-- Replaces the field once someone has joined -->
+              <p class="waitlist-thanks" aria-hidden="true">Received. When the moon rises, you will know.</p>
+            </div>
+
+            <p class="waitlist-status" id="waitlist-status" role="status" aria-live="polite"></p>
+
+            <!-- After joining: keep a picture of it, or start again -->
+            <div class="waitlist-after">
+              <button type="button" class="save-moon" tabindex="-1">Save your moon</button>
+              <button type="button" class="start-again" tabindex="-1">Start again</button>
+            </div>
+
+            <p class="waitlist-consent">By joining, you agree to receive emails from REMOIRE.</p>
+
+            <div class="sign-modes" role="group" aria-label="How to sign">
+              <button type="button" class="sign-mode" data-mode="type" aria-pressed="true" tabindex="-1">Type</button>
+              <span class="sign-sep" aria-hidden="true">·</span>
+              <button type="button" class="sign-mode" data-mode="draw" aria-pressed="false" tabindex="-1">Draw</button>
+              <button type="button" class="sign-clear" tabindex="-1">Clear</button>
+              <button type="button" class="waitlist-skip" tabindex="-1">Skip</button>
+            </div>
+          </form>
+
+        </div>
+
+
+        <!-- ============ FILM GRAIN ============ -->
+        <div class="grain" aria-hidden="true"></div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ============ SAVE YOUR MOON: preview of the Stories image ============ -->
+  <div class="moon-share" role="dialog" aria-modal="true" aria-labelledby="moon-share-title" hidden>
+    <div class="moon-share-inner">
+      <h2 class="moon-share-title" id="moon-share-title">Your moon</h2>
+      <img class="moon-share-img" alt="Your signed bottle of THE MOON in the crater, with REMOIRE.">
+      <p class="moon-share-hint">On a phone, press and hold the image to save it.</p>
+      <div class="moon-share-actions">
+        <button type="button" class="moon-share-share" hidden>Share</button>
+        <button type="button" class="moon-share-save">Save image</button>
+        <button type="button" class="moon-share-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
