@@ -1,0 +1,5 @@
+# Files that belong to the project, not the website
+.git
+.assetsignore
+wrangler.jsonc
+README.md

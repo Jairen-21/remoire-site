@@ -1,0 +1,11 @@
+// Cloudflare Worker settings for remoire.co.
+// Serves this folder as a static site, and shows 404.html
+// for any address that doesn't exist.
+{
+  "name": "remoire",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": ".",
+    "not_found_handling": "404-page"
+  }
+}
