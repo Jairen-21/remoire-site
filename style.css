@@ -378,39 +378,6 @@ svg {
   opacity: var(--joined);
 }
 
-/* A light burning inside the bottle, glinting out through the
-   craters and pores. Colour-dodge brightens the surface's own
-   texture; a near-white light turns the bottle's warm tones gold
-   (a gold-tinted light would push them to red). Cut to the
-   bottle's shape. It switches on as the light arrives, grows when
-   someone joins, and flickers softly like a flame. */
-.bottle-core {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse 40% 36% at 50% 62%,
-    rgba(252, 252, 252, 1) 0%,
-    rgba(246, 247, 248, 0.8) 35%,
-    rgba(240, 242, 244, 0.25) 70%,
-    rgba(240, 242, 244, 0) 100%);
-  mix-blend-mode: color-dodge;
-  opacity: calc(var(--lit) * (0.8 + var(--joined) * 0.2));
-  -webkit-mask-image: url("assets/Moon%20transparent.png");
-          mask-image: url("assets/Moon%20transparent.png");
-  -webkit-mask-size: 100% 100%;
-          mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
-  animation: core-flicker 6s ease-in-out infinite;
-}
-
-@keyframes core-flicker {
-  0%, 100% { filter: brightness(1); }
-  30%      { filter: brightness(1.12); }
-  55%      { filter: brightness(0.94); }
-  75%      { filter: brightness(1.06); }
-}
-
 .bottle img {
   position: absolute;
   inset: 0;
@@ -1576,7 +1543,6 @@ svg {
     animation-name: engrave-still;
   }
 
-  .bottle-core,
   .moon-soon.is-sheen,
   .waitlist-label.is-sheen .label-email,
   .waitlist.is-name .label-name .ln-1,
