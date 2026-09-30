@@ -304,6 +304,50 @@ svg {
   line-height: 0;
 }
 
+/* ---- Loading crescent ---- */
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: #000;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.9s ease, visibility 0s linear 0.9s;
+}
+
+.show-loader .loader {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.5s ease;
+}
+
+.show-loader.is-loaded .loader {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.9s ease, visibility 0s linear 0.9s;
+}
+
+.loader-moon {
+  display: block;
+  width: 40px;
+  height: 40px;
+  overflow: visible;
+}
+
+.loader-ring {
+  fill: none;
+  stroke: rgba(195, 150, 82, 0.28);
+  stroke-width: 0.6;
+}
+
+.loader-lit {
+  fill: url(#loader-gold);
+}
+
 .remoire-wordmark {
   width: 100%;
   height: auto;

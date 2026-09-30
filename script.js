@@ -92,6 +92,69 @@
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  /* =========================================
+     LOADING CRESCENT
+     Shown only on slow connections. The crescent waxes towards
+     full as the moon, the bottle and the type arrive.
+  ========================================= */
+
+  (() => {
+    const html = document.documentElement;
+    const lit = document.querySelector(".loader-lit");
+    let target = 0, shown = 0, done = false, doneAt = 0, finished = false;
+    const shownSince = () => html.classList.contains("show-loader");
+
+    // Waxing moon: 0 = new, 1 = full
+    const phasePath = (p) => {
+      const r = 17, rx = (r * Math.abs(1 - 2 * p)).toFixed(2);
+      const sweep = p < 0.5 ? 0 : 1;
+      return `M 20 3 A 17 17 0 0 1 20 37 A ${rx} 17 0 0 ${sweep} 20 3 Z`;
+    };
+
+    const parts = [];
+    const add = (weight, promise) => {
+      parts.push(weight);
+      promise.catch(() => {}).then(() => { target += weight; check(); });
+    };
+    const loadImage = (src) => new Promise((res) => { const i = new Image(); i.onload = i.onerror = res; i.src = src; });
+    const imgReady = (img) => img.complete ? Promise.resolve() : new Promise((res) => { img.addEventListener("load", res, { once: true }); img.addEventListener("error", res, { once: true }); });
+
+    add(0.45, loadImage("assets/moon-background.webp"));
+    const bottle = document.querySelector(".bottle-lit");
+    add(0.3, bottle ? imgReady(bottle) : Promise.resolve());
+    const marks = [...document.querySelectorAll(".brand-lockup img")];
+    add(0.1, Promise.all(marks.map(imgReady)));
+    add(0.15, document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+
+    function check() {
+      if (done || target < 0.999) return;
+      done = true;
+      doneAt = performance.now();
+    }
+
+    // Never keep anyone waiting forever
+    setTimeout(() => { target = 1; check(); }, 12000);
+
+    const start = performance.now();
+    function tick(now) {
+      // Drift gently ahead of what has loaded, never quite reaching it
+      const creep = Math.min(0.12, (now - start) / 30000);
+      const aim = done ? 1 : Math.min(0.94, Math.max(0.05, target + creep));
+      shown += (aim - shown) * (reducedMotion.matches ? 1 : 0.08);
+      if (lit) lit.setAttribute("d", phasePath(Math.max(0.04, shown)));
+
+      if (done && (shown > 0.995 || !shownSince()) && !finished) {
+        finished = true;
+        html.classList.remove("is-loading");
+        // Hold the full moon a moment before it fades
+        setTimeout(() => html.classList.add("is-loaded"), shownSince() ? 350 : 0);
+        return;
+      }
+      if (!finished) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  })();
+
   // Keep the copyright year current
   const yearEl = document.querySelector(".copyright-year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());

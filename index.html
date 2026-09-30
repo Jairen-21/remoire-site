@@ -30,13 +30,34 @@
   <meta name="twitter:image" content="https://remoire.co/assets/share-preview.jpg">
 
   <!-- Swap .no-js for .js before first paint (prevents a flash of the wrong state) -->
-  <script>document.documentElement.className = "js";</script>
+  <script>
+    document.documentElement.className = "js is-loading";
+    // The crescent only appears if loading takes longer than a moment
+    setTimeout(function () {
+      var h = document.documentElement;
+      if (h.classList.contains("is-loading")) h.classList.add("show-loader");
+    }, 350);
+  </script>
 
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
 
 <body>
+
+  <!-- Loading: a thin gold crescent waxes while the moon arrives (slow connections only) -->
+  <div class="loader" aria-hidden="true">
+    <svg class="loader-moon" viewBox="0 0 40 40" width="40" height="40" focusable="false">
+      <defs>
+        <linearGradient id="loader-gold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.15" stop-color="#e7c380"/>
+          <stop offset="0.85" stop-color="#c39652"/>
+        </linearGradient>
+      </defs>
+      <circle class="loader-ring" cx="20" cy="20" r="17"/>
+      <path class="loader-lit" d="M 20 3 A 17 17 0 0 1 20 37 A 15.6 17 0 0 0 20 3 Z"/>
+    </svg>
+  </div>
 
   <main>
 
