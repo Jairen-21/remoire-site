@@ -71,9 +71,6 @@
               >
             </h1>
 
-            <!-- Fills while the landscape and bottle load, then fades -->
-            <span class="load-line" aria-hidden="true"><span class="load-line-fill"></span></span>
-
           </div>
         </div>
 
@@ -89,11 +86,6 @@
           <!-- Clips at the crater floor, so the bottle rises up out of it -->
           <div class="bottle-rise">
             <div class="bottle-form">
-              <!-- Soft gold halo around the bottle once it is lit -->
-              <div class="bottle-halo">
-                <img src="assets/Moon%20transparent.png" alt="" width="900" height="1128" decoding="async" fetchpriority="low">
-              </div>
-
               <img
                 src="assets/Moon%20transparent.png"
                 alt=""
@@ -114,8 +106,8 @@
                 fetchpriority="low"
               >
 
-              <!-- A light that follows the visitor's cursor or finger across the bottle -->
-              <div class="bottle-light"></div>
+              <!-- A light burning inside the bottle, shining out through the surface -->
+              <div class="bottle-core"></div>
 
               <!-- The visitor's name, engraved around the bottle -->
               <svg class="bottle-name" viewBox="0 0 900 1128" aria-hidden="true" focusable="false">
@@ -264,12 +256,6 @@
         <button type="button" class="moon-share-close">Close</button>
       </div>
     </div>
-  </div>
-
-  <!-- ============ CUSTOM CURSOR (desktop only) ============ -->
-  <div class="cursor" aria-hidden="true">
-    <span class="cursor-ring"></span>
-    <span class="cursor-dot"></span>
   </div>
 
 </body>
