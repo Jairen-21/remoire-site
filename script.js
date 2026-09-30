@@ -92,6 +92,10 @@
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  // Keep the copyright year current
+  const yearEl = document.querySelector(".copyright-year");
+  if (yearEl) yearEl.textContent = String(new Date().getFullYear());
+
 
   /* =========================================
      MEASUREMENT
