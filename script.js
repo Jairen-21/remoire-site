@@ -868,7 +868,7 @@
   document.addEventListener("click", (e) => {
     if (performance.now() - caughtAt < 500) return;
     if ((values.lunar || 0) < 0.8) return;
-    if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, button, a, input, canvas.sign-pad")) return;
+    if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, .wish-star, button, a, input, canvas.sign-pad")) return;
     if (e.clientY < window.innerHeight * 0.42) return;   // the sky isn't ground
     smoke.puff(e.clientX, e.clientY);
   });
@@ -983,7 +983,7 @@
 
     document.addEventListener("pointerdown", (e) => {
       if (!active.length) return;
-      if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, button, a, input, canvas.sign-pad")) return;
+      if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, .wish-star, button, a, input, canvas.sign-pad")) return;
       tryCatch(e.clientX, e.clientY);
     }, { passive: true });
 
@@ -2092,6 +2092,7 @@
       const list = JSON.parse(localStorage.getItem(WISH_KEY) || "[]");
       return Array.isArray(list)
         ? list.filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)).slice(-MAX_WISH_STARS)
+            .map((p) => ({ x: p.x, y: p.y, text: typeof p.text === "string" ? p.text.slice(0, 60) : "" }))
         : [];
     } catch (e) { return []; }
   }
@@ -2100,13 +2101,55 @@
     try { localStorage.setItem(WISH_KEY, JSON.stringify(list.slice(-MAX_WISH_STARS))); } catch (e) {}
   }
 
+  const wishReveal = document.querySelector(".wish-reveal");
+  let revealTimer = 0;
+
+  // Show a wish beside its star for a few seconds, then let it fade
+  function revealWish(p, hint) {
+    if (!wishReveal) return;
+    clearTimeout(revealTimer);
+    wishReveal.textContent = "";
+    const line = document.createElement("span");
+    line.textContent = p.text ? `\u201C${p.text}\u201D` : "A wish, kept by the moon.";
+    wishReveal.appendChild(line);
+    if (hint) {
+      const h = document.createElement("span");
+      h.className = "wish-reveal-hint";
+      h.textContent = hint;
+      wishReveal.appendChild(document.createElement("br"));
+      wishReveal.appendChild(h);
+    }
+    wishReveal.hidden = false;
+    wishReveal.classList.remove("is-shown");
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const box = wishReveal.getBoundingClientRect();
+    const sx = W * p.x / 100, sy = H * p.y / 100;
+    const left = Math.max(16, Math.min(W - box.width - 16, sx - box.width / 2));
+    wishReveal.style.left = `${left}px`;
+    wishReveal.style.top = `${sy + 18}px`;
+    stage.classList.add("is-revealing");
+    requestAnimationFrame(() => wishReveal.classList.add("is-shown"));
+    revealTimer = setTimeout(() => {
+      wishReveal.classList.remove("is-shown");
+      stage.classList.remove("is-revealing");
+      revealTimer = setTimeout(() => { wishReveal.hidden = true; }, 900);
+    }, hint ? 6000 : 4500);
+  }
+
   function placeWishStar(p, isNew) {
     if (!wishSky) return;
-    const el = document.createElement("span");
+    const el = document.createElement("button");
+    el.type = "button";
     el.className = "wish-star" + (isNew ? " is-new" : "");
+    el.setAttribute("aria-label", "Your wish");
     el.style.left = `${p.x}%`;
     el.style.top = `${p.y}%`;
     if (!isNew) el.style.animationDelay = `${(-Math.random() * 5).toFixed(2)}s`;
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if ((values.lunar || 0) < 0.8) return;
+      revealWish(p);
+    });
     wishSky.appendChild(el);
   }
 
@@ -2142,17 +2185,20 @@
 
   function landWish(target, clientX, clientY) {
     if (clientX != null) smoke.burst(clientX, clientY, 10, 40);
-    placeWishStar(target, true);
+    const p = { x: Math.round(target.x * 100) / 100, y: Math.round(target.y * 100) / 100, text: target.text || "" };
+    placeWishStar(p, true);
     const list = loadWishStars();
-    list.push({ x: Math.round(target.x * 100) / 100, y: Math.round(target.y * 100) / 100 });
+    list.push(p);
     saveWishStars(list);
     wishBusy = false;
+    // The first time, say how to find it again
+    setTimeout(() => revealWish(p, "Tap your star to read it again."), reducedMotion.matches ? 300 : 1400);
   }
 
   function releaseWish(text) {
     wishBusy = true;
     const r = stage.getBoundingClientRect();
-    const target = { x: 12 + Math.random() * 76, y: 6 + Math.random() * 22 };   // % of the sky
+    const target = { x: 12 + Math.random() * 76, y: 6 + Math.random() * 22, text };   // % of the sky
     const tx = r.left + r.width * target.x / 100;
     const ty = r.top + r.height * target.y / 100;
 
