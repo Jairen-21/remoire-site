@@ -39,8 +39,8 @@
     }, 350);
   </script>
 
-  <link rel="stylesheet" href="style.css?v=20261001b">
-  <script src="script.js?v=20261001b" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261001c">
+  <script src="script.js?v=20261001c" defer></script>
 </head>
 
 <body>
@@ -298,16 +298,7 @@
     <div class="birth-moon-inner">
       <h2 class="birth-moon-title" id="birth-moon-title">Your birth moon</h2>
 
-      <svg class="birth-moon-disc" viewBox="0 0 200 200" width="200" height="200" aria-hidden="true" focusable="false">
-        <defs>
-          <linearGradient id="bm-gold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0.1" stop-color="#e7c380"/>
-            <stop offset="0.9" stop-color="#b98a48"/>
-          </linearGradient>
-        </defs>
-        <circle class="bm-dark" cx="100" cy="100" r="90"/>
-        <path class="bm-lit" d="M 100 10 A 90 90 0 0 1 100 190 A 90 90 0 0 0 100 10 Z"/>
-      </svg>
+      <canvas class="birth-moon-disc" width="400" height="400" aria-hidden="true"></canvas>
 
       <form class="birth-moon-form" novalidate>
         <label for="birth-date" class="birth-moon-label">The night you were born</label>

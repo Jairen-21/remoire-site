@@ -1911,19 +1911,10 @@ svg {
 
 .birth-moon-disc {
   display: block;
-  width: min(200px, 44vw);
+  width: min(220px, 50vw);
   height: auto;
-  overflow: visible;
-}
-
-.bm-dark {
-  fill: rgba(195, 150, 82, 0.06);
-  stroke: rgba(195, 150, 82, 0.3);
-  stroke-width: 0.6;
-}
-
-.bm-lit {
-  fill: url(#bm-gold);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 0 28px rgba(231, 195, 128, 0.16));
 }
 
 .birth-moon-form {
