@@ -1986,6 +1986,18 @@
       ctx.restore();
     }
 
+    // A quiet patch of night behind the title, so it reads over the Milky Way
+    ctx.save();
+    ctx.translate(W / 2, 300);
+    ctx.scale(1, 0.42);
+    const hush = ctx.createRadialGradient(0, 0, 0, 0, 0, 560);
+    hush.addColorStop(0, "rgba(0,0,0,0.72)");
+    hush.addColorStop(0.5, "rgba(0,0,0,0.42)");
+    hush.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = hush;
+    ctx.fillRect(-600, -600, 1200, 1200);
+    ctx.restore();
+
     // REMOIRE, and the date line
     const wmW = 640;
     const wmH = wmW * 167 / 1850;
