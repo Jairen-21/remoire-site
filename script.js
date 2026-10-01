@@ -93,23 +93,71 @@
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   /* =========================================
-     LOADING CRESCENT
-     Shown only on slow connections. The crescent waxes towards
-     full as the moon, the bottle and the type arrive.
+     LOADING MOON
+     Shown only on slow connections. The gold moon (the same one
+     as the birth moon) waxes from new to full as the landscape,
+     the bottle and the type arrive.
   ========================================= */
 
   (() => {
     const html = document.documentElement;
-    const lit = document.querySelector(".loader-lit");
+    const canvas = document.querySelector(".loader-moon");
     let target = 0, shown = 0, done = false, doneAt = 0, finished = false;
     const shownSince = () => html.classList.contains("show-loader");
 
-    // Waxing moon: 0 = new, 1 = full
-    const phasePath = (p) => {
-      const r = 17, rx = (r * Math.abs(1 - 2 * p)).toFixed(2);
-      const sweep = p < 0.5 ? 0 : 1;
-      return `M 20 3 A 17 17 0 0 1 20 37 A ${rx} 17 0 0 ${sweep} 20 3 Z`;
-    };
+    // The moon's surface, read once from a small copy of the birth moon
+    let surface = null;
+    const S = canvas ? canvas.width : 0;
+    if (canvas) {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = c.height = S;
+        const g = c.getContext("2d");
+        g.drawImage(img, 0, 0, S, S);
+        try { surface = g.getImageData(0, 0, S, S).data; } catch (e) {}
+      };
+      img.src = "assets/loader-moon.webp";
+    }
+
+    // Waxing moon: p 0 = new, 1 = full. Lit as the birth moon is.
+    let lastDrawn = -1;
+    function drawMoon(p) {
+      if (!canvas || Math.abs(p - lastDrawn) < 0.002) return;
+      const ctx = canvas.getContext("2d");
+      if (!surface) {
+        // Until the moon arrives: a faint outline
+        ctx.clearRect(0, 0, S, S);
+        ctx.beginPath();
+        ctx.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(195,150,82,0.3)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        return;
+      }
+      lastDrawn = p;
+      const img = ctx.createImageData(S, S);
+      const data = img.data;
+      const rad = p * Math.PI;
+      const sx = Math.sin(rad), sz = -Math.cos(rad);
+      for (let py = 0; py < S; py++) {
+        const ny = (py + 0.5) / S * 2 - 1;
+        for (let px = 0; px < S; px++) {
+          const nx = (px + 0.5) / S * 2 - 1;
+          const rr = nx * nx + ny * ny;
+          if (rr > 1) continue;
+          const l = nx * sx + Math.sqrt(1 - rr) * sz;
+          const t = Math.min(1, Math.max(0, (l + 0.04) / 0.16));
+          const k = 0.1 + 0.9 * t * t * (3 - 2 * t);
+          const o = (py * S + px) * 4;
+          data[o] = surface[o] * k;
+          data[o + 1] = surface[o + 1] * k;
+          data[o + 2] = surface[o + 2] * k;
+          data[o + 3] = surface[o + 3];
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
 
     const parts = [];
     const add = (weight, promise) => {
@@ -141,7 +189,7 @@
       const creep = Math.min(0.12, (now - start) / 30000);
       const aim = done ? 1 : Math.min(0.94, Math.max(0.05, target + creep));
       shown += (aim - shown) * (reducedMotion.matches ? 1 : 0.08);
-      if (lit) lit.setAttribute("d", phasePath(Math.max(0.04, shown)));
+      if (shownSince()) drawMoon(Math.max(0.06, shown));
 
       if (done && (shown > 0.995 || !shownSince()) && !finished) {
         finished = true;
