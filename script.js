@@ -1848,7 +1848,10 @@
   }
 
   function forget() {
-    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    try {
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem("remoire-wishes");     // their wish stars, too
+    } catch (e) {}
   }
 
   // Signatures are stored lightly: whole-pixel points, every other one
@@ -2197,10 +2200,30 @@
   let revealTimer = 0;
 
   // Show a wish beside its star for a few seconds, then let it fade
-  function revealWish(p, hint) {
+  function hideReveal() {
+    clearTimeout(revealTimer);
+    wishReveal.classList.remove("is-shown");
+    stage.classList.remove("is-revealing");
+    revealTimer = setTimeout(() => { wishReveal.hidden = true; }, 900);
+  }
+
+  // Let a wish go: its star fades from the sky and the wish is erased
+  function letWishGo(p, el) {
+    hideReveal();
+    const r = el.getBoundingClientRect();
+    smoke.sparkle(r.left + r.width / 2, r.top + r.height / 2, 8);
+    el.classList.add("is-leaving");
+    el.disabled = true;
+    setTimeout(() => el.remove(), reducedMotion.matches ? 0 : 1600);
+    const list = loadWishStars().filter((q) => !(q.x === p.x && q.y === p.y));
+    saveWishStars(list);
+  }
+
+  function revealWish(p, hint, el) {
     if (!wishReveal) return;
     clearTimeout(revealTimer);
     wishReveal.textContent = "";
+    wishReveal.classList.toggle("has-action", !!el);
     const line = document.createElement("span");
     line.textContent = p.text ? `\u201C${p.text}\u201D` : "A wish, kept by the moon.";
     wishReveal.appendChild(line);
@@ -2210,6 +2233,15 @@
       h.textContent = hint;
       wishReveal.appendChild(document.createElement("br"));
       wishReveal.appendChild(h);
+    }
+    if (el) {
+      const go = document.createElement("button");
+      go.type = "button";
+      go.className = "wish-let-go";
+      go.textContent = "Let it go";
+      go.addEventListener("click", (e) => { e.stopPropagation(); letWishGo(p, el); });
+      wishReveal.appendChild(document.createElement("br"));
+      wishReveal.appendChild(go);
     }
     wishReveal.hidden = false;
     wishReveal.classList.remove("is-shown");
@@ -2221,11 +2253,7 @@
     wishReveal.style.top = `${sy + 18}px`;
     stage.classList.add("is-revealing");
     requestAnimationFrame(() => wishReveal.classList.add("is-shown"));
-    revealTimer = setTimeout(() => {
-      wishReveal.classList.remove("is-shown");
-      stage.classList.remove("is-revealing");
-      revealTimer = setTimeout(() => { wishReveal.hidden = true; }, 900);
-    }, hint ? 6000 : 4500);
+    revealTimer = setTimeout(hideReveal, hint ? 6000 : el ? 6500 : 4500);
   }
 
   function placeWishStar(p, isNew) {
@@ -2240,7 +2268,7 @@
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       if ((values.lunar || 0) < 0.8) return;
-      revealWish(p);
+      revealWish(p, null, el);
     });
     wishSky.appendChild(el);
   }

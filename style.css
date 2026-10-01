@@ -2396,3 +2396,55 @@ svg {
         rgba(0, 0, 0, 0) 100%);
   }
 }
+
+
+/* ---- Letting a wish go ---- */
+
+.wish-reveal.has-action {
+  pointer-events: auto;
+}
+
+.wish-let-go {
+  margin-top: 8px;
+  padding: 6px 4px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  text-transform: uppercase;
+  color: var(--gold-500);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.95);
+  transition: color 0.4s ease, border-color 0.4s ease;
+}
+
+.wish-let-go:hover {
+  color: var(--gold-wordmark-light);
+  border-bottom-color: var(--gold-hairline);
+}
+
+.wish-let-go:focus-visible {
+  outline: 1px solid var(--gold-focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.wish-star.is-leaving {
+  animation: wish-leave 1.6s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes wish-leave {
+  0%   { opacity: 1; transform: none; }
+  30%  { opacity: 1; transform: scale(1.8); }
+  100% { opacity: 0; transform: scale(0.2) translateY(-14px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wish-star.is-leaving { animation: none; opacity: 0; }
+}
