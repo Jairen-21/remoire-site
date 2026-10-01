@@ -32,6 +32,8 @@
   <!-- Swap .no-js for .js before first paint (prevents a flash of the wrong state) -->
   <script>
     document.documentElement.className = "js is-loading";
+    // remoire.co/#loader always plays the loading moon, for previewing it
+    if (location.hash === "#loader") document.documentElement.classList.add("show-loader");
     // The crescent only appears if loading takes longer than a moment
     setTimeout(function () {
       var h = document.documentElement;
@@ -40,8 +42,8 @@
   </script>
 
   <link rel="preload" as="image" href="assets/loader-moon.webp" fetchpriority="high">
-  <link rel="stylesheet" href="style.css?v=20261001h">
-  <script src="script.js?v=20261001h" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261001i">
+  <script src="script.js?v=20261001i" defer></script>
 </head>
 
 <body>

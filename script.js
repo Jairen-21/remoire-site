@@ -174,7 +174,12 @@
     add(0.1, Promise.all(marks.map(imgReady)));
     add(0.15, document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
 
+    // Preview: remoire.co/#loader plays the whole waxing over a few seconds
+    const preview = location.hash === "#loader";
+    const previewStart = performance.now();
+
     function check() {
+      if (preview && performance.now() - previewStart < 4200) return;
       if (done || target < 0.999) return;
       done = true;
       doneAt = performance.now();
@@ -187,7 +192,11 @@
     function tick(now) {
       // Drift gently ahead of what has loaded, never quite reaching it
       const creep = Math.min(0.12, (now - start) / 30000);
-      const aim = done ? 1 : Math.min(0.94, Math.max(0.05, target + creep));
+      if (preview && !done) {
+        target = Math.min(1, (now - previewStart) / 4000);
+        if (target >= 1) check();
+      }
+      const aim = done ? 1 : Math.min(preview ? 1 : 0.94, Math.max(0.05, preview ? target : target + creep));
       shown += (aim - shown) * (reducedMotion.matches ? 1 : 0.08);
       if (shownSince()) drawMoon(Math.max(0.06, shown));
 
