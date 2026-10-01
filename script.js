@@ -1178,6 +1178,8 @@
      single chisel strike sets it into the glass. */
 
   const WEAVE = { gather: 2400, per: 360, gap: 160, dust: 55 };
+  const SIG_GOLD = "rgb(214, 170, 96)";        // the gold, cooled
+  const SIG_HOT = [255, 231, 176];             // the gold, just poured
   let weaveRun = 0;
 
   function frames(dur, fn, run) {
@@ -1317,15 +1319,16 @@
     const { gather } = WEAVE;
 
     let at = gather;
-    const plan = strokesEls.map(({ cut, glint }, i) => {
+    const plan = strokesEls.map((parts, i) => {
       let len = 0;
-      try { len = cut.getTotalLength(); } catch (e) {}
+      try { len = parts.cut.getTotalLength(); } catch (e) {}
       const dur = clamp(250 + len * 2.2, 350, 1400);
-      const item = { cut, glint, len, dur, start: at, i };
+      const item = Object.assign({ len, dur, start: at, i }, parts);
       at += dur + 120;
       return item;
     });
 
+    // 1. Moon dust settles along the strokes
     const points = [];
     plan.forEach(({ cut, len, dur, start, i }) => {
       if (!len) return;
@@ -1336,20 +1339,17 @@
         points.push({ x: p.x + rnd(-1, 1) * width * 0.4, y: p.y + rnd(-1, 1) * width * 0.4, group: i, fadeAt: start + ease(u) * dur });
       }
     });
-    plan.forEach(({ cut, glint }) => {
-      for (const el of [cut, glint]) { el.style.animation = "none"; el.style.strokeDashoffset = "1"; }
-      glint.style.opacity = "0.8";
-    });
     smoke.gather(points, gather);
     if (!(await pause(gather, run))) return;
 
+    // 2. The etching point cuts each groove; the chisel sets its end
     const nib = { x: 0, y: 0, a: 0 };
     smoke.nib(nib);
-    for (const { cut, glint, len, dur } of plan) {
+    for (const { cut, groove, len, dur } of plan) {
       let n = 0;
       const ok = await frames(dur, (t) => {
         const e = ease(t);
-        cut.style.strokeDashoffset = glint.style.strokeDashoffset = (1 - e).toFixed(4);
+        groove.forEach((p) => { p.style.strokeDashoffset = (1 - e).toFixed(4); });
         if (!len) return;
         const p = cut.getPointAtLength(len * e);
         nib.x = p.x; nib.y = p.y; nib.a = 1;
@@ -1360,12 +1360,30 @@
       }, run);
       if (!ok) return;
       if (len) smoke.strike(nib.x, nib.y);
-      frames(800, (t) => { glint.style.opacity = (0.8 * (1 - t)).toFixed(3); }, run);
       if (!(await pause(120, run))) return;
     }
     await frames(400, (t) => { nib.a = 1 - t; }, run);
     if (run === weaveRun) smoke.nib(null);
+
+    // 3. Gold flows along the floor of the cut, glowing at its front, then cools
+    if (!(await pause(250, run))) return;
+    for (const { gold, hot, dur } of plan) {
+      gold.setAttribute("stroke", `rgb(${SIG_HOT.join(",")})`);
+      hot.setAttribute("opacity", "1");
+      const ok = await frames(dur * 0.9, (t) => {
+        const e = ease(t);
+        gold.style.strokeDashoffset = (1 - e).toFixed(4);
+        hot.style.strokeDashoffset = (0.05 - e).toFixed(4);
+      }, run);
+      hot.setAttribute("opacity", "0");
+      if (!ok) return;
+      const to = [214, 170, 96];
+      frames(900, (t) => {
+        gold.setAttribute("stroke", `rgb(${SIG_HOT.map((v, k) => Math.round(v + (to[k] - v) * t)).join(",")})`);
+      }, run);
+    }
   }
+
 
   smoke.setMapper(() => {
     const svg = document.querySelector(".bottle-name");
@@ -1536,27 +1554,34 @@
 
     const width = clamp(2.2 * k, 4, 7);
     const paths = [];
-    const cutEls = [];
     const pairs = [];
-    let delay = 0;
+    const stroke = (parent, d, attrs) => {
+      const p = document.createElementNS(ns, "path");
+      p.setAttribute("d", d);
+      p.setAttribute("pathLength", "1");
+      for (const key in attrs) p.setAttribute(key, attrs[key]);
+      parent.appendChild(p);
+      return p;
+    };
+
+    // Each stroke: a V-cut groove with frosted walls, and gold along its floor
     lines.forEach((s) => {
       const d = pathFor(s);
       paths.push(d);
-      const pair = {};
-      pairs.push(pair);
-      for (const cls of ["sig-glint", "sig-cut"]) {
-        const p = document.createElementNS(ns, "path");
-        p.setAttribute("d", d);
-        p.setAttribute("class", cls);
-        p.setAttribute("pathLength", "1");
-        p.setAttribute("stroke-width", (cls === "sig-glint" ? width * 1.1 : width).toFixed(2));
-        p.setAttribute("filter", cls === "sig-cut" ? "url(#name-cut)" : "url(#name-glint)");
-        p.style.animationDelay = `${delay}ms, ${delay}ms`;
-        group.appendChild(p);
-        pair[cls === "sig-cut" ? "cut" : "glint"] = p;
-        if (cls === "sig-cut") cutEls.push({ el: p, delay });
-      }
-      delay += 380;
+      const g = document.createElementNS(ns, "g");
+      g.setAttribute("class", "sig-stroke");
+      group.appendChild(g);
+      const groove = [
+        stroke(g, d, { stroke: "#000", "stroke-opacity": "0.82", "stroke-width": (width * 1.4).toFixed(2), transform: "translate(0 -1.3)", filter: "url(#sig-soft)" }),
+        stroke(g, d, { stroke: "#f0d7a2", "stroke-opacity": "0.8", "stroke-width": (width * 1.05).toFixed(2), transform: "translate(0 1.5)" }),
+        stroke(g, d, { stroke: "#2a1d0e", "stroke-width": (width * 1.15).toFixed(2) }),
+        stroke(g, d, { stroke: "#e6cf9c", "stroke-width": (width * 1.1).toFixed(2), filter: "url(#sig-frost)", opacity: "0.5" }),
+        stroke(g, d, { stroke: "#120c06", "stroke-width": (width * 0.5).toFixed(2) }),
+      ];
+      const gold = stroke(g, d, { stroke: SIG_GOLD, "stroke-width": (width * 0.36).toFixed(2) });
+      const hot = stroke(g, d, { stroke: "#fff6e0", "stroke-width": (width * 0.65).toFixed(2), filter: "url(#name-glint)", opacity: "0" });
+      hot.style.strokeDasharray = "0.05 2";
+      pairs.push({ cut: groove[2], groove, gold, hot });
     });
 
     engraving = { type: "signature", paths, width };
@@ -1566,22 +1591,10 @@
       return;
     }
 
-    // Gold dust follows the pen as the signature draws itself
-    if (!isStatic) {
-      cutEls.forEach(({ el, delay: start }) => {
-        let len = 0;
-        try { len = el.getTotalLength(); } catch (e) { return; }
-        const steps = 14;
-        for (let s = 0; s <= steps; s++) {
-          const t = s / steps;
-          setTimeout(() => {
-            const pt = el.getPointAtLength(len * t);
-            const p = bottleToScreen(pt.x, pt.y);
-            if (p) smoke.sparkle(p.x, p.y, 5);
-          }, start + t * 2400);
-        }
-      });
-    }
+    // Returning visitor, or reduced motion: already engraved
+    pairs.forEach(({ groove, gold }) => {
+      groove.concat(gold).forEach((p) => { p.style.strokeDashoffset = "0"; });
+    });
   }
 
   async function submitSignature() {
@@ -1949,13 +1962,23 @@
           ctx.restore();
         }
       } else if (engraving.type === "signature" && window.Path2D) {
+        // The V-cut groove, frosted walls and the gold along its floor
+        const w = engraving.width;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.lineWidth = engraving.width;
-        for (const [colour, dy] of cut) {
+        const layers = [
+          ["rgba(0,0,0,0.75)", w * 1.4, -1.3],
+          ["rgba(240,215,162,0.8)", w * 1.05, 1.5],
+          ["#2a1d0e", w * 1.15, 0],
+          ["rgba(230,207,156,0.28)", w * 1.1, 0],
+          ["#120c06", w * 0.5, 0],
+          ["rgb(214,170,96)", w * 0.36, 0],
+        ];
+        for (const [colour, lw, dy] of layers) {
           ctx.save();
           ctx.translate(0, dy);
           ctx.strokeStyle = colour;
+          ctx.lineWidth = lw;
           for (const d of engraving.paths) ctx.stroke(new Path2D(d));
           ctx.restore();
         }
@@ -2606,23 +2629,26 @@
 
       ctx.textAlign = "center";
       tracked(r.dateText.toUpperCase(), 1250, '500 28px "Cormorant Garamond", Garamond, serif', "#c39652", 28 * 0.3);
-      tracked(r.phase.toUpperCase(), 1362, '500 58px "Cormorant Garamond", Garamond, serif', "#e7c380", 58 * 0.34);
-      tracked(r.month.toUpperCase(), 1432, '500 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.24);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#e7c380";
+      ctx.font = '500 84px "Cormorant Garamond", Garamond, serif';
+      ctx.fillText(r.phase, W / 2, 1360);
+      ctx.fillStyle = "#c39652";
+      ctx.font = 'italic 400 38px "Cormorant Garamond", Garamond, serif';
+      ctx.fillText(r.month, W / 2, 1432);
 
-      // The reading, in tracked capitals, wrapped to the width of the moon
-      const lineFont = '500 32px "Cormorant Garamond", Garamond, serif', lineTrack = 32 * 0.24;
-      ctx.font = lineFont;
-      const widthOf = (t) => [...t].reduce((w, ch) => w + ctx.measureText(ch).width, 0) + lineTrack * (t.length - 1);
-      const words = r.line.toUpperCase().split(" ");
+      ctx.fillStyle = "#e7c380";
+      ctx.font = '400 46px "Cormorant Garamond", Garamond, serif';
+      const words = r.line.split(" ");
       const lines = [];
       let lineText = "";
       for (const word of words) {
         const test = lineText ? `${lineText} ${word}` : word;
-        if (widthOf(test) > 860 && lineText) { lines.push(lineText); lineText = word; }
+        if (ctx.measureText(test).width > 820 && lineText) { lines.push(lineText); lineText = word; }
         else lineText = test;
       }
       if (lineText) lines.push(lineText);
-      lines.forEach((l, i) => tracked(l, 1540 + i * 58, lineFont, "#e7c380", lineTrack));
+      lines.forEach((l, i) => ctx.fillText(l, W / 2, 1540 + i * 62));
 
       tracked("REMOIRE.CO", 1810, '600 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.5);
       return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.9));

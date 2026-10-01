@@ -39,8 +39,8 @@
     }, 350);
   </script>
 
-  <link rel="stylesheet" href="style.css?v=20261001e">
-  <script src="script.js?v=20261001e" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261001f">
+  <script src="script.js?v=20261001f" defer></script>
 </head>
 
 <body>
@@ -143,6 +143,17 @@
                       <feMergeNode in="edge-dark"/>
                       <feMergeNode in="SourceGraphic"/>
                     </feMerge>
+                  </filter>
+                  <filter id="sig-soft" x="-30%" y="-60%" width="160%" height="220%">
+                    <feGaussianBlur stdDeviation="0.7"/>
+                  </filter>
+                  <filter id="sig-frost" x="-20%" y="-40%" width="140%" height="180%">
+                    <feTurbulence type="fractalNoise" baseFrequency="2.2" numOctaves="2" seed="7" result="noise"/>
+                    <feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -0.45" result="grain"/>
+                    <feComposite in="SourceGraphic" in2="grain" operator="in" result="speckle"/>
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" result="haze"/>
+                    <feComponentTransfer in="haze" result="faint"><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
+                    <feMerge><feMergeNode in="faint"/><feMergeNode in="speckle"/></feMerge>
                   </filter>
                   <filter id="name-glint" x="-60%" y="-120%" width="220%" height="340%">
                     <feGaussianBlur stdDeviation="6" result="blur"/>
