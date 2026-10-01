@@ -2606,26 +2606,23 @@
 
       ctx.textAlign = "center";
       tracked(r.dateText.toUpperCase(), 1250, '500 28px "Cormorant Garamond", Garamond, serif', "#c39652", 28 * 0.3);
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#e7c380";
-      ctx.font = '500 84px "Cormorant Garamond", Garamond, serif';
-      ctx.fillText(r.phase, W / 2, 1360);
-      ctx.fillStyle = "#c39652";
-      ctx.font = 'italic 400 38px "Cormorant Garamond", Garamond, serif';
-      ctx.fillText(r.month, W / 2, 1432);
+      tracked(r.phase.toUpperCase(), 1362, '500 58px "Cormorant Garamond", Garamond, serif', "#e7c380", 58 * 0.34);
+      tracked(r.month.toUpperCase(), 1432, '500 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.24);
 
-      ctx.fillStyle = "#e7c380";
-      ctx.font = '400 46px "Cormorant Garamond", Garamond, serif';
-      const words = r.line.split(" ");
+      // The reading, in tracked capitals, wrapped to the width of the moon
+      const lineFont = '500 32px "Cormorant Garamond", Garamond, serif', lineTrack = 32 * 0.24;
+      ctx.font = lineFont;
+      const widthOf = (t) => [...t].reduce((w, ch) => w + ctx.measureText(ch).width, 0) + lineTrack * (t.length - 1);
+      const words = r.line.toUpperCase().split(" ");
       const lines = [];
       let lineText = "";
       for (const word of words) {
         const test = lineText ? `${lineText} ${word}` : word;
-        if (ctx.measureText(test).width > 820 && lineText) { lines.push(lineText); lineText = word; }
+        if (widthOf(test) > 860 && lineText) { lines.push(lineText); lineText = word; }
         else lineText = test;
       }
       if (lineText) lines.push(lineText);
-      lines.forEach((l, i) => ctx.fillText(l, W / 2, 1540 + i * 62));
+      lines.forEach((l, i) => tracked(l, 1540 + i * 58, lineFont, "#e7c380", lineTrack));
 
       tracked("REMOIRE.CO", 1810, '600 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.5);
       return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.9));

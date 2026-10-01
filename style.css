@@ -852,9 +852,10 @@ svg {
   appearance: none;
 
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(21px, 1.7vw, 26px);   /* ≥16px — prevents iOS Safari zooming the page on focus */
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  font-size: clamp(17px, 1.35vw, 21px);   /* ≥16px — prevents iOS Safari zooming the page on focus */
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
   color: var(--gold-wordmark-light);
   caret-color: var(--gold-400);
   text-shadow: 0 0 10px rgba(216, 169, 100, 0.35);
@@ -863,6 +864,8 @@ svg {
 .waitlist input::placeholder {
   color: var(--gold-400);
   font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
   opacity: 1;
 }
 
@@ -949,9 +952,10 @@ svg {
   pointer-events: none;
 
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(21px, 1.7vw, 26px);
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  font-size: clamp(17px, 1.35vw, 21px);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
   color: var(--gold-wordmark-light);
 }
 
@@ -1046,7 +1050,6 @@ svg {
 }
 
 .waitlist-skip {
-  margin-left: 22px;
   padding: 6px 4px;
   background: none;
   border: 0;
@@ -1103,6 +1106,10 @@ svg {
   display: none;
 }
 
+.sign-modes {
+  align-items: center;
+}
+
 .sign-mode,
 .sign-clear {
   padding: 6px 4px;
@@ -1137,17 +1144,29 @@ svg {
   border-radius: 2px;
 }
 
-.sign-sep {
-  color: var(--gold-700);
+/* A small gold dot between Type, Draw, Clear and Skip */
+.sign-dot {
+  flex: none;
+  align-self: center;
+  width: 3px;
+  height: 3px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--gold-500);
+  box-shadow: 0 0 4px rgba(216, 169, 100, 0.55);
 }
 
-.sign-clear {
+.sign-clear,
+.sign-dot-clear {
   display: none;
-  margin-left: 18px;
 }
 
 .waitlist.is-draw .sign-clear {
   display: inline-block;
+}
+
+.waitlist.is-draw .sign-dot-clear {
+  display: block;
 }
 
 /* The pad takes the field's place while drawing */
@@ -1708,9 +1727,10 @@ svg {
 .wish-field input,
 .wish-letters {
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(19px, 1.5vw, 22px);
-  letter-spacing: 0.03em;
+  font-weight: 500;
+  font-size: clamp(16px, 1.25vw, 19px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .wish-field input {
@@ -1725,8 +1745,9 @@ svg {
 }
 
 .wish-field input::placeholder {
-  font-style: italic;
-  color: rgba(195, 150, 82, 0.75);
+  color: rgba(195, 150, 82, 0.8);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .wish-send {
@@ -1955,8 +1976,10 @@ svg {
   outline: 0;
   color-scheme: dark;
   font-family: var(--font-display);
-  font-size: 20px;
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--gold-wordmark-light);
   text-align: left;
 }
@@ -2278,4 +2301,180 @@ svg {
   --soon: 1;
   --list: 1;
   --cue: 0;
+}
+
+
+/* =========================================
+   REMOIRE LETTERING, EVERYWHERE
+   Every line on the site speaks in the wordmark's voice:
+   Cormorant capitals, tracked out, in gold. No italics,
+   no sentence case. (Tracked lines carry a matching
+   negative right margin so they sit truly centred.)
+========================================= */
+
+.label-email .le-1,
+.sign-hint,
+.waitlist-consent,
+.waitlist-thanks,
+.start-again,
+.make-wish,
+.copyright,
+.wish-title,
+.wish-note,
+.wish-reveal,
+.birth-moon-label,
+.birth-moon-note,
+.bm-phase,
+.bm-month,
+.bm-line,
+.moon-share-hint {
+  font-family: var(--font-display);
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.label-email .le-1 {
+  left: 0;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 0.8em;
+  letter-spacing: var(--tracking-label);
+}
+
+.sign-hint {
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: 0.32em;
+}
+
+.waitlist-consent {
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 1.8;
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
+}
+
+.waitlist-thanks {
+  font-weight: 500;
+  font-size: clamp(13px, 1.05vw, 15px);
+  line-height: 1.7;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+}
+
+.start-again,
+.make-wish {
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+}
+
+.copyright {
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+.wish-title {
+  font-weight: 600;
+  font-size: clamp(15px, 1.25vw, 18px);
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+}
+
+.wish-note {
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+.wish-reveal {
+  font-weight: 500;
+  font-size: clamp(13px, 1.05vw, 15px);
+  line-height: 1.7;
+  letter-spacing: 0.22em;
+}
+
+.wish-reveal .wish-reveal-hint {
+  font-size: 0.75em;
+  letter-spacing: 0.26em;
+}
+
+.birth-moon-label {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.36em;
+  margin-right: -0.36em;
+}
+
+.birth-moon-note {
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+.bm-phase {
+  font-weight: 500;
+  font-size: clamp(20px, 2.2vw, 26px);
+  letter-spacing: 0.34em;
+  margin-right: -0.34em;
+}
+
+.bm-month {
+  font-weight: 500;
+  font-size: 11.5px;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+.bm-line {
+  max-width: 34ch;
+  font-weight: 500;
+  font-size: clamp(13px, 1.1vw, 15px);
+  line-height: 1.8;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+.moon-share-hint {
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  margin-right: -0.24em;
+}
+
+/* Gold dots: even spacing on both sides */
+.sign-modes {
+  gap: 0;
+}
+
+.sign-modes .sign-dot {
+  margin: 0 14px;
+}
+
+.sign-modes .sign-mode,
+.sign-modes .sign-clear,
+.sign-modes .waitlist-skip {
+  margin-left: 0;
+}
+
+/* No single word left alone on a line */
+.wish-title,
+.wish-note,
+.wish-reveal,
+.waitlist-thanks,
+.waitlist-consent,
+.bm-month,
+.bm-line,
+.birth-moon-note,
+.moon-share-hint {
+  text-wrap: balance;
+}
+
+.bm-line {
+  max-width: 44ch;
 }
