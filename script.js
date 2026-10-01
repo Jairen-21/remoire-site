@@ -2336,113 +2336,33 @@
       return 7;
     }
 
-    /* ---- The moon's surface, in gold ----
-       Drawn once in the browser and kept: soft "seas" (maria),
-       craters with bright rims, a few rayed craters and fine dust.
-       The same seed every time, so everyone sees the same moon. */
+    /* ---- The moon's surface ----
+       REMOIRE's own gold moon (assets/birth-moon.webp), lit in the
+       browser as it was on the night they were born. */
 
-    const TEX = 600;
-    let surface = null;
+    const TEX = 800;
+    let surface = null;          // RGBA pixels of the moon, TEX × TEX
+    let surfaceLoading = null;
 
-    function seeded(seed) {
-      return () => {
-        seed = (seed + 0x6D2B79F5) | 0;
-        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
+    function loadSurface() {
+      if (surface) return Promise.resolve(surface);
+      if (!surfaceLoading) {
+        surfaceLoading = loadImage("assets/birth-moon.webp").then((img) => {
+          const c = document.createElement("canvas");
+          c.width = c.height = TEX;
+          const g = c.getContext("2d");
+          g.drawImage(img, 0, 0, TEX, TEX);
+          surface = g.getImageData(0, 0, TEX, TEX).data;
+          return surface;
+        }).catch((e) => { surfaceLoading = null; throw e; });
+      }
+      return surfaceLoading;
     }
-
-    function buildSurface() {
-      const rand = seeded(1969);
-      const G = 64;
-      const lattice = new Float32Array(G * G);
-      for (let i = 0; i < lattice.length; i++) lattice[i] = rand();
-      const at = (x, y) => lattice[(((y % G) + G) % G) * G + (((x % G) + G) % G)];
-      const noise = (x, y) => {
-        const xi = Math.floor(x), yi = Math.floor(y);
-        const xf = x - xi, yf = y - yi;
-        const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-        const a = at(xi, yi) + (at(xi + 1, yi) - at(xi, yi)) * u;
-        const b = at(xi, yi + 1) + (at(xi + 1, yi + 1) - at(xi, yi + 1)) * u;
-        return a + (b - a) * v;
-      };
-      const fbm = (x, y, oct) => {
-        let s = 0, amp = 0.5, f = 1;
-        for (let o = 0; o < oct; o++) { s += amp * noise(x * f, y * f); amp *= 0.5; f *= 2.03; }
-        return s;
-      };
-      const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-
-      const A = new Float32Array(TEX * TEX);
-      for (let y = 0; y < TEX; y++) {
-        for (let x = 0; x < TEX; x++) {
-          const u = x / TEX * 2.3, v = y / TEX * 2.3;
-          const seas = smooth(0.47, 0.66, fbm(u + 11.3, v + 7.1, 6));
-          const highlands = (fbm(u * 6 + 3.7, v * 6 + 1.9, 5) - 0.5) * 0.18;
-          A[y * TEX + x] = 0.7 + highlands - seas * 0.34 + (rand() - 0.5) * 0.04;
-        }
-      }
-
-      // Craters: many small, a few large; light baked from the upper left
-      const crater = (cx, cy, cr, depth) => {
-        const reach = cr * 1.35;
-        const x0 = Math.max(0, Math.floor(cx - reach)), x1 = Math.min(TEX - 1, Math.ceil(cx + reach));
-        const y0 = Math.max(0, Math.floor(cy - reach)), y1 = Math.min(TEX - 1, Math.ceil(cy + reach));
-        for (let y = y0; y <= y1; y++) {
-          for (let x = x0; x <= x1; x++) {
-            const dx = x - cx, dy = y - cy;
-            const d = Math.sqrt(dx * dx + dy * dy) / cr;
-            if (d > 1.35) continue;
-            const side = d > 0 ? (dx * 0.6 + dy * 0.8) / (d * cr) : 0;   // -1 faces the light, +1 away
-            let k = 0;
-            if (d < 1) {
-              k -= depth * 0.6 * (1 - d * d);                       // the floor
-              k += depth * 0.9 * side * smooth(0.45, 1, d);          // inner walls
-            } else {
-              k += depth * 0.8 * (1 - (d - 1) / 0.35) * (0.55 - 0.45 * side);   // the rim
-            }
-            A[y * TEX + x] += k;
-          }
-        }
-      };
-      for (let i = 0; i < 340; i++) {
-        const big = Math.pow(rand(), 4.5);
-        const cr = TEX * (0.0025 + big * 0.05);
-        crater(rand() * TEX, rand() * TEX, cr, (0.05 + rand() * 0.06) * (1 - big * 0.4));
-      }
-
-      // Two young craters, with soft bright haloes instead of rays
-      for (const [cx, cy, cr] of [[TEX * 0.43, TEX * 0.8, TEX * 0.018], [TEX * 0.67, TEX * 0.3, TEX * 0.012]]) {
-        crater(cx, cy, cr, 0.16);
-        const reach = cr * 5;
-        for (let y = Math.max(0, Math.floor(cy - reach)); y < Math.min(TEX, cy + reach); y++) {
-          for (let x = Math.max(0, Math.floor(cx - reach)); x < Math.min(TEX, cx + reach); x++) {
-            const d = Math.hypot(x - cx, y - cy) / reach;
-            if (d < 1) A[y * TEX + x] += 0.09 * Math.pow(1 - d, 2);
-          }
-        }
-      }
-
-      for (let i = 0; i < A.length; i++) A[i] = Math.min(1, Math.max(0, A[i]));
-      return A;
-    }
-
-    // Gold: deep bronze in the seas, pale gold on the brightest rims
-    const STOPS = [[0, 52, 36, 16], [0.45, 150, 108, 54], [0.72, 214, 172, 106], [1, 250, 230, 186]];
-    const goldOf = (a) => {
-      for (let i = 1; i < STOPS.length; i++) {
-        if (a <= STOPS[i][0]) {
-          const p = STOPS[i - 1], q = STOPS[i], t = (a - p[0]) / (q[0] - p[0]);
-          return [p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t, p[3] + (q[3] - p[3]) * t];
-        }
-      }
-      return STOPS[STOPS.length - 1].slice(1);
-    };
+    loadSurface().catch(() => {});
 
     // Draw the moon as lit on the given night. E: 0 = new, 180 = full.
     function paintMoon(canvas, E) {
-      if (!surface) surface = buildSurface();
+      if (!surface) return false;
       const S = canvas.width;
       const ctx = canvas.getContext("2d");
       const img = ctx.createImageData(S, S);
@@ -2452,29 +2372,26 @@
       const scale = TEX / S;
       for (let py = 0; py < S; py++) {
         const ny = (py + 0.5) / S * 2 - 1;
-        const row = Math.min(TEX - 1, Math.floor(py * scale)) * TEX;
+        const row = Math.min(TEX - 1, Math.floor((py + 0.5) * scale)) * TEX;
         for (let px = 0; px < S; px++) {
           const nx = (px + 0.5) / S * 2 - 1;
           const rr = nx * nx + ny * ny;
           if (rr > 1) continue;
-          const edge = Math.min(1, (1 - Math.sqrt(rr)) * S * 0.5);   // smooth limb
           const nz = Math.sqrt(1 - rr);
           const l = nx * sx + nz * sz;
           const t = Math.min(1, Math.max(0, (l + 0.04) / 0.16));
           const lit = t * t * (3 - 2 * t);
-          const light = 0.075 + 0.925 * lit;                       // earthshine on the dark side
-          const limb = 0.72 + 0.28 * Math.pow(nz, 0.6);
-          const a = surface[row + Math.min(TEX - 1, Math.floor(px * scale))];
-          const [r, g, b] = goldOf(a);
-          const k = light * limb;
+          const k = 0.08 + 0.92 * lit;                           // earthshine on the dark side
+          const si = (row + Math.min(TEX - 1, Math.floor((px + 0.5) * scale))) * 4;
           const o = (py * S + px) * 4;
-          data[o] = r * k;
-          data[o + 1] = g * k;
-          data[o + 2] = b * k;
-          data[o + 3] = 255 * edge;
+          data[o] = surface[si] * k;
+          data[o + 1] = surface[si + 1] * k;
+          data[o + 2] = surface[si + 2] * k;
+          data[o + 3] = surface[si + 3];
         }
       }
       ctx.putImageData(img, 0, 0);
+      return true;
     }
 
     function sizeDisc() {
@@ -2484,7 +2401,7 @@
     }
 
     function drawDisc(E) {
-      paintMoon(bCanvas, E);
+      if (!paintMoon(bCanvas, E)) loadSurface().then(() => paintMoon(bCanvas, E), () => {});
     }
 
     let discRun = 0;
@@ -2493,9 +2410,11 @@
       const waning = E > 180;
       const w = waning ? 360 - E : E;
       if (reducedMotion.matches) { drawDisc(E); return; }
-      const start = performance.now();
+      let start = 0;
       const tick = (now) => {
         if (run !== discRun) return;
+        if (!surface) { loadSurface().then(() => requestAnimationFrame(tick), () => {}); return; }
+        if (!start) start = now;
         const t = Math.min(1, (now - start) / 2000);
         const cur = w * ease(t);
         drawDisc(waning ? 360 - cur : cur);
@@ -2681,6 +2600,7 @@
       ctx.fillRect(CX - R * 1.6, CY - R * 1.6, R * 3.2, R * 3.2);
       const moon = document.createElement("canvas");
       moon.width = moon.height = R * 2;
+      await loadSurface();
       paintMoon(moon, r.E);
       ctx.drawImage(moon, CX - R, CY - R);
 
