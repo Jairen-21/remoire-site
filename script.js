@@ -1688,7 +1688,7 @@
     pending = { name: name || null, signature: signature || null };
     step = "email";
     const le1 = form.querySelector(".le-1");
-    if (le1) le1.textContent = name ? "Your name is on the moon." : signature ? "Your mark is on the moon." : "";
+    if (le1) le1.textContent = name || signature ? "Your mark is on the moon." : "";
     form.classList.remove("is-name", "is-draw", "has-ink");
     form.classList.add("is-email");
     modeBtns.forEach((b) => (b.tabIndex = -1));
@@ -1711,9 +1711,7 @@
     form.classList.remove("is-name", "is-email", "is-draw", "has-ink");
     form.classList.add("is-done");
     input.tabIndex = -1;
-    status.textContent = name ? `${THANKS} Your name is engraved on the bottle.`
-                       : signature ? `${THANKS} Your signature is engraved on the bottle.`
-                       : THANKS;
+    status.textContent = THANKS;
     lightTheBottle();
     remember({ name: name || null, signature: signature ? compact(signature) : null });
     enableAfter();
