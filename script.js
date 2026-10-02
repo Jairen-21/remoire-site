@@ -1049,6 +1049,152 @@
 
 
   /* =========================================
+     COMETS
+     Every 30 seconds, once the sky is visible, a twin-tailed
+     comet drifts slowly across it: a slim pale tail and a
+     broad, curved gold dust tail, shedding fine dust. Drawn on
+     its own canvas, which only runs while a comet is passing.
+  ========================================= */
+
+  (() => {
+    const INTERVAL = 30000;
+    const FIRST_DELAY = 6000;            // the first one, soon after the sky appears
+    const canvas = document.createElement("canvas");
+    canvas.className = "comet-sky";
+    canvas.setAttribute("aria-hidden", "true");
+    stage.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    let W = 0, H = 0, dpr = 1;
+    let comet = null, dust = [], running = false, next = 0, last = 0;
+
+    const sprite = document.createElement("canvas");
+    sprite.width = sprite.height = 64;
+    {
+      const g = sprite.getContext("2d");
+      const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      r.addColorStop(0, "rgba(255,250,236,1)");
+      r.addColorStop(0.18, "rgba(250,228,180,0.9)");
+      r.addColorStop(0.5, "rgba(220,175,105,0.28)");
+      r.addColorStop(1, "rgba(195,150,82,0)");
+      g.fillStyle = r;
+      g.fillRect(0, 0, 64, 64);
+    }
+
+    function size() {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = stage.clientWidth; H = stage.clientHeight;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+    }
+    window.addEventListener("resize", size);
+    size();
+
+    const skyVisible = () => (values.lunar || 0) >= 0.8 && (values["brand-out"] || 0) >= 0.9;
+
+    function launch() {
+      const fromLeft = Math.random() < 0.5;
+      const y0 = H * (0.07 + Math.random() * 0.2);
+      const ey = y0 + H * (0.05 + Math.random() * 0.1);
+      comet = {
+        sx: fromLeft ? -W * 0.12 : W * 1.12, sy: y0,
+        ex: fromLeft ? W * 1.12 : -W * 0.12, ey,
+        cy: Math.min(y0, ey) - H * 0.05,
+        born: performance.now(), dur: 7500 + Math.random() * 1500,
+      };
+      if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
+    }
+
+    function at(c, t) {
+      const u = 1 - t, cx = (c.sx + c.ex) / 2;
+      return { x: u * u * c.sx + 2 * u * t * cx + t * t * c.ex, y: u * u * c.sy + 2 * u * t * c.cy + t * t * c.ey };
+    }
+
+    function tail(p, dx, dy, len, width, bend, c0, c1) {
+      const nx = -dy, ny = dx;
+      const bx = p.x - dx * len + nx * bend, by = p.y - dy * len + ny * bend;
+      const mx = p.x - dx * len * 0.5 + nx * bend * 0.4, my = p.y - dy * len * 0.5 + ny * bend * 0.4;
+      const g = ctx.createLinearGradient(p.x, p.y, bx, by);
+      g.addColorStop(0, c0);
+      g.addColorStop(1, c1);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(p.x + nx * width * 0.25, p.y + ny * width * 0.25);
+      ctx.quadraticCurveTo(mx + nx * width, my + ny * width, bx + nx * width * 0.4, by + ny * width * 0.4);
+      ctx.lineTo(bx - nx * width * 0.4, by - ny * width * 0.4);
+      ctx.quadraticCurveTo(mx - nx * width, my - ny * width, p.x - nx * width * 0.25, p.y - ny * width * 0.25);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function frame(now) {
+      const dt = Math.min(50, now - last);
+      last = now;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalCompositeOperation = "lighter";
+
+      if (comet) {
+        const t = (now - comet.born) / comet.dur;
+        if (t >= 1) comet = null;
+        else {
+          const fade = Math.min(1, t * 6, (1 - t) * 6);
+          const p = at(comet, t), q = at(comet, Math.max(0, t - 0.01));
+          let dx = p.x - q.x, dy = p.y - q.y;
+          const L = Math.hypot(dx, dy) || 1;
+          dx /= L; dy /= L;
+          const s = Math.min(W, H) / 700;
+          const len = 300 * s;
+          ctx.globalAlpha = fade;
+          // slim pale tail, straight
+          tail(p, dx, dy, len * 1.1, 2.4 * s, 0, "rgba(240,236,224,0.55)", "rgba(240,236,224,0)");
+          // broad gold dust tail, curved, layered so its edges stay soft
+          for (const [w, a] of [[22, 0.1], [16, 0.12], [10, 0.14], [5, 0.16]]) {
+            tail(p, dx, dy, len * 0.85, w * s, 34 * s, `rgba(236,196,128,${a})`, "rgba(214,170,96,0)");
+          }
+          // the head
+          const hr = 16 * s;
+          ctx.drawImage(sprite, p.x - hr, p.y - hr, hr * 2, hr * 2);
+          ctx.drawImage(sprite, p.x - hr * 0.35, p.y - hr * 0.35, hr * 0.7, hr * 0.7);
+          ctx.globalAlpha = 1;
+          if (Math.random() < 0.7) {
+            const nx = -dy, ny = dx;
+            dust.push({
+              x: p.x - dx * (4 + Math.random() * 18) * s + nx * (Math.random() - 0.5) * 10 * s,
+              y: p.y - dy * (4 + Math.random() * 18) * s + ny * (Math.random() - 0.5) * 10 * s,
+              vx: -dx * 0.15 + (Math.random() - 0.5) * 0.1, vy: -dy * 0.15 + (Math.random() - 0.5) * 0.1 + 0.02,
+              life: 0, max: 1200 + Math.random() * 1200, r: (1 + Math.random() * 1.8) * s,
+            });
+          }
+        }
+      }
+
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        d.life += dt;
+        if (d.life > d.max) { dust.splice(i, 1); continue; }
+        d.x += d.vx * dt * 0.06; d.y += d.vy * dt * 0.06;
+        ctx.globalAlpha = 0.7 * (1 - d.life / d.max);
+        ctx.drawImage(sprite, d.x - d.r * 2, d.y - d.r * 2, d.r * 4, d.r * 4);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+
+      if (comet || dust.length) requestAnimationFrame(frame);
+      else { running = false; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    }
+
+    setInterval(() => {
+      if (reducedMotion.matches || document.hidden || comet) return;
+      if (!skyVisible()) { next = 0; return; }
+      const now = performance.now();
+      if (!next) next = now + FIRST_DELAY;
+      if (now >= next) { launch(); next = now + INTERVAL; }
+    }, 500);
+  })();
+
+
+  /* =========================================
      ARRIVAL
      Black first, then the R fades up once it has
      actually loaded (never pops in half-drawn).
