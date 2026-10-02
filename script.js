@@ -1054,8 +1054,7 @@
      crosses the whole sky below COMING SOON in five seconds:
      a teardrop head, a smooth gold tail with fine grain
      streaming off it, a faint straight pale-gold tail, and a
-     warm light that washes the crater and gleams on the bottle
-     as it passes. Two canvases: the comet sits in the sky
+     soft warm light that washes over the crater as it passes. Two canvases: the comet sits in the sky
      (behind the bottle), its light sits just above the bottle.
      Both only run while a comet is passing.
   ========================================= */
@@ -1230,29 +1229,15 @@
           dx /= len; dy /= len;
           const nx = -dy, ny = dx;
           const bright = Math.min(1, t * 6, (1 - t) * 6);
-          const { horizon, ball } = sceneNow();
+          const { horizon } = sceneNow();
 
-          // its light: a warm wash over the crater, a gleam on the bottle
+          // its light: a soft warm wash over the crater (the bottle keeps its own light)
           const groundY = horizon + (H - horizon) * 0.35;
           const wash = lctx.createRadialGradient(p.x, groundY, 0, p.x, groundY, W * 0.45);
           wash.addColorStop(0, `rgba(231,190,120,${(0.07 * bright).toFixed(3)})`);
           wash.addColorStop(1, "rgba(231,190,120,0)");
           lctx.fillStyle = wash;
           lctx.fillRect(0, horizon, W, H - horizon);
-          if (ball) {
-            const ang = Math.atan2(p.y - ball.y, p.x - ball.x);
-            const near = Math.max(0, 1 - Math.hypot(p.x - ball.x, p.y - ball.y) / (W * 0.8));
-            lctx.save();
-            lctx.beginPath(); lctx.arc(ball.x, ball.y, ball.r * 0.98, 0, Math.PI * 2); lctx.clip();
-            const gx = ball.x + Math.cos(ang) * ball.r * 0.85, gy = ball.y + Math.sin(ang) * ball.r * 0.85;
-            const gleam = lctx.createRadialGradient(gx, gy, 0, gx, gy, ball.r * 0.9);
-            gleam.addColorStop(0, `rgba(255,226,170,${(0.24 * bright * (0.4 + near)).toFixed(3)})`);
-            gleam.addColorStop(1, "rgba(255,226,170,0)");
-            lctx.fillStyle = gleam;
-            lctx.fillRect(ball.x - ball.r, ball.y - ball.r, ball.r * 2, ball.r * 2);
-            lctx.restore();
-          }
-
           // grain streaming off the head
           for (let k = 0; k < 14; k++) {
             const sp = (0.04 + Math.random() * 0.12) * base * SIZE;
