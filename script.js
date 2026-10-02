@@ -1050,27 +1050,43 @@
 
   /* =========================================
      COMETS
-     Every 30 seconds, once the sky is visible, a twin-tailed
-     comet drifts slowly across it: a slim pale tail and a
-     broad, curved gold dust tail, shedding fine dust. Drawn on
-     its own canvas, which only runs while a comet is passing.
+     Every 30 seconds, once the sky is visible, a gold comet
+     crosses the whole sky below COMING SOON in five seconds:
+     a teardrop head, a smooth gold tail with fine grain
+     streaming off it, a faint straight pale-gold tail, and a
+     warm light that washes the crater and gleams on the bottle
+     as it passes. Two canvases: the comet sits in the sky
+     (behind the bottle), its light sits just above the bottle.
+     Both only run while a comet is passing.
   ========================================= */
 
   (() => {
     const INTERVAL = 30000;
     const FIRST_DELAY = 6000;            // the first one, soon after the sky appears
-    const canvas = document.createElement("canvas");
-    canvas.className = "comet-sky";
-    canvas.setAttribute("aria-hidden", "true");
-    stage.appendChild(canvas);
-    const ctx = canvas.getContext("2d");
-    let W = 0, H = 0, dpr = 1;
-    let comet = null, dust = [], running = false, next = 0, last = 0;
+    const DURATION = 5000;
+    const SIZE = 0.6;                     // overall size of the comet
 
-    const sprite = document.createElement("canvas");
-    sprite.width = sprite.height = 64;
+    const sky = document.createElement("canvas");
+    sky.className = "comet-sky";
+    sky.setAttribute("aria-hidden", "true");
+    stage.appendChild(sky);
+    const light = document.createElement("canvas");
+    light.className = "comet-light";
+    light.setAttribute("aria-hidden", "true");
+    stage.appendChild(light);
+    const ctx = sky.getContext("2d");
+    const lctx = light.getContext("2d");
+    const bg = document.querySelector(".lunar-background");
+    const bottleImg = document.querySelector(".bottle-lit");
+    const BG_W = 1672, BG_H = 941, HORIZON = 0.372;   // the landscape image and its horizon line
+
+    let W = 0, H = 0, dpr = 1;
+    let comet = null, trail = [], running = false, next = 0, last = 0;
+
+    const dot = document.createElement("canvas");
+    dot.width = dot.height = 64;
     {
-      const g = sprite.getContext("2d");
+      const g = dot.getContext("2d");
       const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
       r.addColorStop(0, "rgba(255,250,236,1)");
       r.addColorStop(0.18, "rgba(250,228,180,0.9)");
@@ -1083,105 +1099,198 @@
     function size() {
       dpr = Math.min(2, window.devicePixelRatio || 1);
       W = stage.clientWidth; H = stage.clientHeight;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
+      for (const c of [sky, light]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
     }
     window.addEventListener("resize", size);
     size();
 
     const skyVisible = () => (values.lunar || 0) >= 0.8 && (values["brand-out"] || 0) >= 0.9;
 
+    // Where the horizon and the bottle are on screen right now
+    function sceneNow() {
+      const st = stage.getBoundingClientRect();
+      let horizon = H * 0.37;
+      if (bg) {
+        const r = bg.getBoundingClientRect();
+        const s = Math.max(r.width / BG_W, r.height / BG_H);
+        horizon = r.top - st.top + (r.height - BG_H * s) / 2 + BG_H * s * HORIZON;
+      }
+      let ball = null;
+      if (bottleImg) {
+        const b = bottleImg.getBoundingClientRect();
+        if (b.width) ball = { x: b.left - st.left + b.width * 0.5, y: b.top - st.top + b.height * (780 / 1128), r: b.width * (410 / 900) };
+      }
+      return { horizon, ball };
+    }
+
+    // The comet, drawn once into a picture: tail glow, spine, pale tail, teardrop head, grain
+    function makeComet(scale) {
+      const L = Math.round(620 * scale), Hh = Math.round(260 * scale);
+      const c = document.createElement("canvas");
+      c.width = L; c.height = Hh;
+      const g = c.getContext("2d");
+      const hx = L - 80 * scale, hy = Hh * 0.4;
+      g.globalCompositeOperation = "lighter";
+      const path = (t) => ({ x: hx - t * (L - 110 * scale), y: hy + Math.pow(t, 1.7) * 70 * scale });
+      const blob = (x, y, r, stops) => {
+        const rg = g.createRadialGradient(x, y, 0, x, y, r);
+        for (const [o, col] of stops) rg.addColorStop(o, col);
+        g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      };
+      for (let k = 0; k <= 220; k++) {                       // the tail's smooth glow
+        const t = k / 220, { x, y } = path(t);
+        const a = Math.pow(1 - t, 2.1) * 0.07;
+        blob(x, y, (4 + Math.pow(t, 1.05) * 46) * scale, [[0, `rgba(240,200,130,${a.toFixed(4)})`], [0.55, `rgba(214,166,92,${(a * 0.45).toFixed(4)})`], [1, "rgba(195,150,82,0)"]]);
+      }
+      for (let k = 0; k <= 160; k++) {                       // a brighter spine
+        const t = k / 160 * 0.75, { x, y } = path(t * 0.9);
+        blob(x, y, (2.5 + t * 10) * scale, [[0, `rgba(255,232,186,${(Math.pow(1 - t / 0.75, 2) * 0.09).toFixed(4)})`], [1, "rgba(240,200,130,0)"]]);
+      }
+      for (let k = 0; k <= 160; k++) {                       // a faint straight pale-gold tail
+        const t = k / 160;
+        blob(hx - t * (L - 100 * scale), hy - t * 6 * scale, (1.5 + t * 7) * scale, [[0, `rgba(250,236,204,${(Math.pow(1 - t, 1.4) * 0.05).toFixed(4)})`], [1, "rgba(250,236,204,0)"]]);
+      }
+      // the teardrop head: the coma stretched back along the path
+      g.save();
+      g.translate(hx, hy); g.scale(2.4, 1);
+      for (const [r, a] of [[22, 0.18], [12, 0.32], [6, 0.55]]) {
+        const ox = -r * 0.35 * scale;
+        const rg = g.createRadialGradient(ox, 0, 0, ox, 0, r * scale);
+        rg.addColorStop(0, `rgba(255,238,200,${a})`); rg.addColorStop(1, "rgba(231,190,120,0)");
+        g.fillStyle = rg; g.beginPath(); g.arc(ox, 0, r * scale, 0, Math.PI * 2); g.fill();
+      }
+      g.restore();
+      blob(hx, hy, 4 * scale, [[0, "rgba(255,250,236,0.95)"], [1, "rgba(231,190,120,0)"]]);
+
+      // fine grain through the tail
+      const grain = document.createElement("canvas");
+      grain.width = L; grain.height = Hh;
+      const gg = grain.getContext("2d");
+      gg.globalCompositeOperation = "lighter";
+      const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+      for (let i = 0; i < 5200; i++) {
+        const t = Math.pow(Math.random(), 0.75), { x, y } = path(t);
+        const spread = (3 + Math.pow(t, 1.05) * 30) * scale;
+        const a = Math.pow(1 - t, 1.5) * (0.16 + Math.random() * 0.22);
+        gg.fillStyle = `rgba(${246 + Math.random() * 9 | 0},${206 + Math.random() * 30 | 0},${140 + Math.random() * 40 | 0},${a.toFixed(3)})`;
+        gg.beginPath(); gg.arc(x + gauss() * spread * 0.35, y + gauss() * spread, (0.45 + Math.random() * 0.9) * scale, 0, Math.PI * 2); gg.fill();
+      }
+
+      // soften into one glow, then lay the grain on top
+      const shrink = (f) => {
+        const d = document.createElement("canvas");
+        d.width = Math.max(1, Math.round(L / f)); d.height = Math.max(1, Math.round(Hh / f));
+        d.getContext("2d").drawImage(c, 0, 0, d.width, d.height);
+        return d;
+      };
+      const out = document.createElement("canvas");
+      out.width = L; out.height = Hh;
+      const o = out.getContext("2d");
+      o.globalCompositeOperation = "lighter";
+      o.globalAlpha = 0.9; o.drawImage(shrink(6), 0, 0, L, Hh);
+      o.globalAlpha = 0.8; o.drawImage(shrink(3), 0, 0, L, Hh);
+      o.globalAlpha = 0.6; o.drawImage(c, 0, 0);
+      o.globalAlpha = 1; o.drawImage(grain, 0, 0);
+      return { canvas: out, hx, hy };
+    }
+
     function launch() {
       const fromLeft = Math.random() < 0.5;
-      const y0 = H * (0.07 + Math.random() * 0.2);
-      const ey = y0 + H * (0.05 + Math.random() * 0.1);
-      comet = {
-        sx: fromLeft ? -W * 0.12 : W * 1.12, sy: y0,
-        ex: fromLeft ? W * 1.12 : -W * 0.12, ey,
-        cy: Math.min(y0, ey) - H * 0.05,
-        born: performance.now(), dur: 7500 + Math.random() * 1500,
-      };
+      const y0 = H * (0.19 + Math.random() * 0.07);
+      const ey = y0 + H * (0.01 + Math.random() * 0.04);
+      const sx = fromLeft ? -W * 0.12 : W * 1.12, ex = fromLeft ? W * 1.12 : -W * 0.12;
+      comet = { sx, sy: y0, ex, ey, cx: (sx + ex) / 2, cy: Math.min(y0, ey) - H * 0.03,
+                born: performance.now(), picture: makeComet(Math.min(W, H) / 700 * dpr) };
       if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
     }
 
-    function at(c, t) {
-      const u = 1 - t, cx = (c.sx + c.ex) / 2;
-      return { x: u * u * c.sx + 2 * u * t * cx + t * t * c.ex, y: u * u * c.sy + 2 * u * t * c.cy + t * t * c.ey };
-    }
-
-    function tail(p, dx, dy, len, width, bend, c0, c1) {
-      const nx = -dy, ny = dx;
-      const bx = p.x - dx * len + nx * bend, by = p.y - dy * len + ny * bend;
-      const mx = p.x - dx * len * 0.5 + nx * bend * 0.4, my = p.y - dy * len * 0.5 + ny * bend * 0.4;
-      const g = ctx.createLinearGradient(p.x, p.y, bx, by);
-      g.addColorStop(0, c0);
-      g.addColorStop(1, c1);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(p.x + nx * width * 0.25, p.y + ny * width * 0.25);
-      ctx.quadraticCurveTo(mx + nx * width, my + ny * width, bx + nx * width * 0.4, by + ny * width * 0.4);
-      ctx.lineTo(bx - nx * width * 0.4, by - ny * width * 0.4);
-      ctx.quadraticCurveTo(mx - nx * width, my - ny * width, p.x - nx * width * 0.25, p.y - ny * width * 0.25);
-      ctx.closePath();
-      ctx.fill();
-    }
+    const at = (c, t) => {
+      const u = 1 - t;
+      return { x: u * u * c.sx + 2 * u * t * c.cx + t * t * c.ex, y: u * u * c.sy + 2 * u * t * c.cy + t * t * c.ey };
+    };
 
     function frame(now) {
       const dt = Math.min(50, now - last);
       last = now;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.globalCompositeOperation = "lighter";
+      for (const c of [ctx, lctx]) {
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, sky.width, sky.height);
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        c.globalCompositeOperation = "lighter";
+      }
+      const base = Math.min(W, H) / 700;
 
       if (comet) {
-        const t = (now - comet.born) / comet.dur;
+        const t = (now - comet.born) / DURATION;
         if (t >= 1) comet = null;
         else {
-          const fade = Math.min(1, t * 6, (1 - t) * 6);
           const p = at(comet, t), q = at(comet, Math.max(0, t - 0.01));
           let dx = p.x - q.x, dy = p.y - q.y;
-          const L = Math.hypot(dx, dy) || 1;
-          dx /= L; dy /= L;
-          const s = Math.min(W, H) / 700;
-          const len = 300 * s;
-          ctx.globalAlpha = fade;
-          // slim pale tail, straight
-          tail(p, dx, dy, len * 1.1, 2.4 * s, 0, "rgba(240,236,224,0.55)", "rgba(240,236,224,0)");
-          // broad gold dust tail, curved, layered so its edges stay soft
-          for (const [w, a] of [[22, 0.1], [16, 0.12], [10, 0.14], [5, 0.16]]) {
-            tail(p, dx, dy, len * 0.85, w * s, 34 * s, `rgba(236,196,128,${a})`, "rgba(214,170,96,0)");
+          const len = Math.hypot(dx, dy) || 1;
+          dx /= len; dy /= len;
+          const nx = -dy, ny = dx;
+          const bright = Math.min(1, t * 6, (1 - t) * 6);
+          const { horizon, ball } = sceneNow();
+
+          // its light: a warm wash over the crater, a gleam on the bottle
+          const groundY = horizon + (H - horizon) * 0.35;
+          const wash = lctx.createRadialGradient(p.x, groundY, 0, p.x, groundY, W * 0.45);
+          wash.addColorStop(0, `rgba(231,190,120,${(0.07 * bright).toFixed(3)})`);
+          wash.addColorStop(1, "rgba(231,190,120,0)");
+          lctx.fillStyle = wash;
+          lctx.fillRect(0, horizon, W, H - horizon);
+          if (ball) {
+            const ang = Math.atan2(p.y - ball.y, p.x - ball.x);
+            const near = Math.max(0, 1 - Math.hypot(p.x - ball.x, p.y - ball.y) / (W * 0.8));
+            lctx.save();
+            lctx.beginPath(); lctx.arc(ball.x, ball.y, ball.r * 0.98, 0, Math.PI * 2); lctx.clip();
+            const gx = ball.x + Math.cos(ang) * ball.r * 0.85, gy = ball.y + Math.sin(ang) * ball.r * 0.85;
+            const gleam = lctx.createRadialGradient(gx, gy, 0, gx, gy, ball.r * 0.9);
+            gleam.addColorStop(0, `rgba(255,226,170,${(0.24 * bright * (0.4 + near)).toFixed(3)})`);
+            gleam.addColorStop(1, "rgba(255,226,170,0)");
+            lctx.fillStyle = gleam;
+            lctx.fillRect(ball.x - ball.r, ball.y - ball.r, ball.r * 2, ball.r * 2);
+            lctx.restore();
           }
-          // the head
-          const hr = 16 * s;
-          ctx.drawImage(sprite, p.x - hr, p.y - hr, hr * 2, hr * 2);
-          ctx.drawImage(sprite, p.x - hr * 0.35, p.y - hr * 0.35, hr * 0.7, hr * 0.7);
-          ctx.globalAlpha = 1;
-          if (Math.random() < 0.7) {
-            const nx = -dy, ny = dx;
-            dust.push({
-              x: p.x - dx * (4 + Math.random() * 18) * s + nx * (Math.random() - 0.5) * 10 * s,
-              y: p.y - dy * (4 + Math.random() * 18) * s + ny * (Math.random() - 0.5) * 10 * s,
-              vx: -dx * 0.15 + (Math.random() - 0.5) * 0.1, vy: -dy * 0.15 + (Math.random() - 0.5) * 0.1 + 0.02,
-              life: 0, max: 1200 + Math.random() * 1200, r: (1 + Math.random() * 1.8) * s,
+
+          // grain streaming off the head
+          for (let k = 0; k < 14; k++) {
+            const sp = (0.04 + Math.random() * 0.12) * base * SIZE;
+            trail.push({
+              x: p.x + nx * (Math.random() - 0.5) * 6 * base * SIZE, y: p.y + ny * (Math.random() - 0.5) * 6 * base * SIZE,
+              vx: -dx * sp + nx * (Math.random() - 0.5) * 0.03 * base, vy: -dy * sp + ny * (Math.random() - 0.5) * 0.03 * base + 0.004 * base,
+              life: 0, max: 700 + Math.random() * 900, r: (0.5 + Math.random()) * base * SIZE,
             });
           }
+
+          // the comet itself, flickering softly
+          const pic = comet.picture;
+          ctx.save();
+          ctx.globalAlpha = bright * (0.9 + 0.1 * Math.sin(now / 90) * Math.sin(now / 37));
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.atan2(dy, dx));
+          ctx.scale(SIZE, SIZE);
+          ctx.drawImage(pic.canvas, -pic.hx / dpr, -pic.hy / dpr, pic.canvas.width / dpr, pic.canvas.height / dpr);
+          ctx.restore();
         }
       }
 
-      for (let i = dust.length - 1; i >= 0; i--) {
-        const d = dust[i];
+      for (let i = trail.length - 1; i >= 0; i--) {
+        const d = trail[i];
         d.life += dt;
-        if (d.life > d.max) { dust.splice(i, 1); continue; }
-        d.x += d.vx * dt * 0.06; d.y += d.vy * dt * 0.06;
-        ctx.globalAlpha = 0.7 * (1 - d.life / d.max);
-        ctx.drawImage(sprite, d.x - d.r * 2, d.y - d.r * 2, d.r * 4, d.r * 4);
+        if (d.life > d.max) { trail.splice(i, 1); continue; }
+        d.x += d.vx * dt; d.y += d.vy * dt;
+        ctx.globalAlpha = 0.75 * Math.pow(1 - d.life / d.max, 1.4);
+        ctx.drawImage(dot, d.x - d.r * 2, d.y - d.r * 2, d.r * 4, d.r * 4);
       }
       ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = "source-over";
+      ctx.globalCompositeOperation = lctx.globalCompositeOperation = "source-over";
 
-      if (comet || dust.length) requestAnimationFrame(frame);
-      else { running = false; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+      if (comet || trail.length) requestAnimationFrame(frame);
+      else {
+        running = false;
+        for (const c of [ctx, lctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, sky.width, sky.height); }
+      }
     }
 
     setInterval(() => {

@@ -2460,3 +2460,13 @@ svg {
   height: 100%;
   pointer-events: none;
 }
+
+/* The comet's light falls on the crater and the bottle: just above them, below the copy */
+.comet-light {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
