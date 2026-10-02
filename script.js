@@ -1054,7 +1054,9 @@
      crosses the whole sky below COMING SOON in five seconds:
      a teardrop head, a smooth gold tail with fine grain
      streaming off it, a faint straight pale-gold tail, and a
-     soft warm light that washes over the crater as it passes. Two canvases: the comet sits in the sky
+     soft warm light that washes over the crater as it passes.
+     On the bottle it leaves a rim of light, a glint on the gold,
+     raking light over the craters and a shadow that swings away. Two canvases: the comet sits in the sky
      (behind the bottle), its light sits just above the bottle.
      Both only run while a comet is passing.
   ========================================= */
@@ -1114,12 +1116,124 @@
         const s = Math.max(r.width / BG_W, r.height / BG_H);
         horizon = r.top - st.top + (r.height - BG_H * s) / 2 + BG_H * s * HORIZON;
       }
-      let ball = null;
-      if (bottleImg) {
+      let bot = null;
+      // only once the bottle has risen and the light has reached it
+      const risen = values["bottle-in"] || 0;
+      const shadowImg = document.querySelector(".bottle-shadow");
+      const rise = document.querySelector(".bottle-rise");
+      if (risen > 0.98 && rise && bottleImg && bottleImg.complete && bottleImg.naturalWidth) {
         const b = bottleImg.getBoundingClientRect();
-        if (b.width) ball = { x: b.left - st.left + b.width * 0.5, y: b.top - st.top + b.height * (780 / 1128), r: b.width * (410 / 900) };
+        const r = rise.getBoundingClientRect();
+        const dark = shadowImg ? parseFloat(getComputedStyle(shadowImg).opacity || "0") : 0;
+        const op = Math.max(0, 1 - dark) * risen;
+        // the bottle is cut off at the crater floor (the base line in .bottle-rise's mask)
+        const floor = r.bottom - st.top - r.height * 0.06;
+        if (b.width) bot = { x: b.left - st.left, y: b.top - st.top, w: b.width, h: b.height, op, floor };
       }
-      return { horizon, ball };
+      return { horizon, bot };
+    }
+
+    // ---- The comet's light on the bottle ----
+    // In the bottle image (900 × 1128): the sphere, the gold collar and the cap
+    const BOT = { cx: 448, cy: 680, r: 440, collarY: 277, collarX0: 305, collarX1: 600, capY: 18, capX0: 256, capX1: 649 };
+    const offA = document.createElement("canvas");
+    const offB = document.createElement("canvas");
+
+    function bottleGeo(bot) {
+      const k = bot.w / 900;
+      return { k, cx: bot.x + BOT.cx * k, cy: bot.y + BOT.cy * k, r: BOT.r * k, x: bot.x, y: bot.y, w: bot.w, h: bot.h, floor: bot.floor };
+    }
+
+    // 5. a soft shadow on the crater floor, swinging away from the comet,
+    //    and the far side of the glass falling into shade
+    function bottleShadow(b, sx, sy, a) {
+      const pad = b.w * 1.4;
+      offA.width = Math.ceil((b.w + pad * 2) * dpr); offA.height = Math.ceil(b.h * 0.35 * dpr);
+      const o = offA.getContext("2d");
+      o.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const ox = b.x - pad, oy = b.y + b.h * 0.8;
+      const side = Math.max(-1, Math.min(1, (b.cx - sx) / (W * 0.45)));
+      const reach = b.w * (0.35 + Math.abs(side) * 0.75);
+      const R = b.w * 0.55 + reach * 0.5;
+      o.save();
+      o.translate(b.cx - ox + side * reach * 0.6, b.y + b.h * 0.975 - oy); o.scale(1, 0.2);
+      const g = o.createRadialGradient(0, 0, 0, 0, 0, R);
+      g.addColorStop(0, `rgba(0,0,0,${(0.9 * a).toFixed(3)})`);
+      g.addColorStop(0.55, `rgba(0,0,0,${(0.5 * a).toFixed(3)})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      o.fillStyle = g; o.beginPath(); o.arc(0, 0, R, 0, Math.PI * 2); o.fill();
+      o.restore();
+      o.globalCompositeOperation = "destination-out";          // never over the glass itself
+      o.drawImage(bottleImg, b.x - ox, b.y - oy, b.w, b.h);
+      lctx.drawImage(offA, ox, oy, offA.width / dpr, offA.height / dpr);
+
+      const ang = Math.atan2(sy - b.cy, sx - b.cx);
+      const c = Math.cos(ang), s = Math.sin(ang);
+      lctx.save();
+      lctx.beginPath(); lctx.rect(b.x - b.w, b.y - b.h, b.w * 3, b.floor - b.y + b.h); lctx.clip();
+      lctx.beginPath(); lctx.arc(b.cx, b.cy, b.r, 0, Math.PI * 2); lctx.clip();
+      const sh = lctx.createLinearGradient(b.cx + c * b.r, b.cy + s * b.r, b.cx - c * b.r, b.cy - s * b.r);
+      sh.addColorStop(0, "rgba(0,0,0,0)");
+      sh.addColorStop(0.45, "rgba(0,0,0,0)");
+      sh.addColorStop(1, `rgba(0,0,0,${(0.55 * a).toFixed(3)})`);
+      lctx.fillStyle = sh; lctx.fillRect(b.cx - b.r, b.cy - b.r, b.r * 2, b.r * 2);
+      lctx.restore();
+    }
+
+    function bottleLight(b, sx, sy, a) {
+      const ang = Math.atan2(sy - b.cy, sx - b.cx);
+      lctx.save();
+      lctx.beginPath(); lctx.rect(b.x - b.w, b.y - b.h, b.w * 3, b.floor - b.y + b.h); lctx.clip();
+      lctx.globalCompositeOperation = "lighter";
+
+      // 4. raking light: the craters on the side facing the comet come alive
+      offB.width = Math.ceil(b.w * dpr); offB.height = Math.ceil(b.h * dpr);
+      const o = offB.getContext("2d");
+      o.setTransform(dpr, 0, 0, dpr, 0, 0);
+      o.drawImage(bottleImg, 0, 0, b.w, b.h);
+      o.globalCompositeOperation = "destination-in";
+      const lx = b.cx - b.x + Math.cos(ang) * b.r, ly = b.cy - b.y + Math.sin(ang) * b.r;
+      const lg = o.createRadialGradient(lx, ly, 0, lx, ly, b.r * 1.3);
+      lg.addColorStop(0, `rgba(0,0,0,${(0.9 * a).toFixed(3)})`);
+      lg.addColorStop(1, "rgba(0,0,0,0)");
+      o.fillStyle = lg; o.fillRect(0, 0, b.w, b.h);
+      lctx.drawImage(offB, b.x, b.y, b.w, b.h);
+      lctx.drawImage(offB, b.x, b.y, b.w, b.h);
+
+      // 1. a thin rim of gold light along the sphere's edge facing the comet (kept off the neck)
+      let ra = ang; const up = -Math.PI / 2, gap = 0.62;
+      const dUp = Math.atan2(Math.sin(ra - up), Math.cos(ra - up));
+      if (Math.abs(dUp) < gap) ra = up + (dUp < 0 ? -gap : gap);
+      lctx.save();
+      lctx.beginPath(); lctx.arc(b.cx, b.cy, b.r * 0.995, 0, Math.PI * 2); lctx.clip();
+      const span = 0.85;
+      for (const [w, al] of [[22, 0.10], [9, 0.22], [3.2, 0.55], [1.2, 0.95]]) {
+        lctx.lineWidth = w * b.k * 2.2;
+        if (lctx.createConicGradient) {
+          const g = lctx.createConicGradient(ra - span, b.cx, b.cy);
+          g.addColorStop(0, "rgba(255,226,170,0)");
+          g.addColorStop(span / (Math.PI * 2), `rgba(255,234,190,${(al * a).toFixed(3)})`);
+          g.addColorStop(span * 2 / (Math.PI * 2), "rgba(255,226,170,0)");
+          g.addColorStop(1, "rgba(255,226,170,0)");
+          lctx.strokeStyle = g;
+        } else lctx.strokeStyle = `rgba(255,234,190,${(al * a * 0.6).toFixed(3)})`;
+        lctx.beginPath(); lctx.arc(b.cx, b.cy, b.r * 0.99, ra - span, ra + span); lctx.stroke();
+      }
+      lctx.restore();
+
+      // 3. a glint sweeping across the gold collar and the cap's top edge
+      const t = Math.max(0, Math.min(1, sx / W));
+      const glint = (gx, gy, rx, ry, a0, a1) => {
+        const g = lctx.createRadialGradient(gx, gy, 0, gx, gy, rx);
+        g.addColorStop(0, `rgba(255,248,226,${(a0 * a).toFixed(3)})`);
+        g.addColorStop(0.2, `rgba(255,224,160,${(a1 * a).toFixed(3)})`);
+        g.addColorStop(1, "rgba(231,190,120,0)");
+        lctx.fillStyle = g;
+        lctx.beginPath(); lctx.ellipse(gx, gy, rx, ry, 0, 0, Math.PI * 2); lctx.fill();
+      };
+      glint(b.x + (BOT.collarX0 + (BOT.collarX1 - BOT.collarX0) * t) * b.k, b.y + BOT.collarY * b.k, 52 * b.k, 18 * b.k, 0.95, 0.45);
+      glint(b.x + (BOT.capX0 + (BOT.capX1 - BOT.capX0) * t) * b.k, b.y + BOT.capY * b.k, 60 * b.k, 10 * b.k, 0.5, 0.25);
+      lctx.restore();
     }
 
     // The comet, drawn once into a picture: tail glow, spine, pale tail, teardrop head, grain
@@ -1229,15 +1343,23 @@
           dx /= len; dy /= len;
           const nx = -dy, ny = dx;
           const bright = Math.min(1, t * 6, (1 - t) * 6);
-          const { horizon } = sceneNow();
+          const { horizon, bot } = sceneNow();
 
-          // its light: a soft warm wash over the crater (the bottle keeps its own light)
+          // its light: a soft warm wash over the crater
           const groundY = horizon + (H - horizon) * 0.35;
           const wash = lctx.createRadialGradient(p.x, groundY, 0, p.x, groundY, W * 0.45);
           wash.addColorStop(0, `rgba(231,190,120,${(0.07 * bright).toFixed(3)})`);
           wash.addColorStop(1, "rgba(231,190,120,0)");
           lctx.fillStyle = wash;
           lctx.fillRect(0, horizon, W, H - horizon);
+          // and on the bottle: a moving shadow, the craters, a rim of light, a glint on the gold
+          if (bot && bot.op > 0.05) {
+            lctx.globalCompositeOperation = "source-over";
+            const b = bottleGeo(bot), a = bright * bot.op;
+            bottleShadow(b, p.x, p.y, a);
+            bottleLight(b, p.x, p.y, a);
+            lctx.globalCompositeOperation = "lighter";
+          }
           // grain streaming off the head
           for (let k = 0; k < 14; k++) {
             const sp = (0.04 + Math.random() * 0.12) * base * SIZE;
