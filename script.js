@@ -927,6 +927,11 @@
     if ((values.lunar || 0) < 0.8) return;
     if (e.target.closest && e.target.closest(".waitlist, .moon-share, .birth-moon, .wish, .wish-star, button, a, input, canvas.sign-pad")) return;
     if (e.clientY < window.innerHeight * 0.42) return;   // the sky isn't ground
+    const bl = document.querySelector(".bottle-lit");     // the bottle sprays instead
+    if (bl && (values["bottle-in"] || 0) > 0.98) {
+      const r = bl.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.top + r.height * 0.94) return;
+    }
     smoke.puff(e.clientX, e.clientY);
   });
 
@@ -1121,7 +1126,8 @@
       const risen = values["bottle-in"] || 0;
       const shadowImg = document.querySelector(".bottle-shadow");
       const rise = document.querySelector(".bottle-rise");
-      if (risen > 0.98 && rise && bottleImg && bottleImg.complete && bottleImg.naturalWidth) {
+      const spraying = document.querySelector(".bottle.is-spraying");
+      if (!spraying && risen > 0.98 && rise && bottleImg && bottleImg.complete && bottleImg.naturalWidth) {
         const b = bottleImg.getBoundingClientRect();
         const r = rise.getBoundingClientRect();
         const dark = shadowImg ? parseFloat(getComputedStyle(shadowImg).opacity || "0") : 0;
@@ -1407,6 +1413,357 @@
       if (!next) next = now + FIRST_DELAY;
       if (now >= next) { launch(); next = now + INTERVAL; }
     }, 500);
+  })();
+
+  /* =========================================
+     THE ATOMISER
+     Click the bottle: the cap floats up (as things do on the
+     moon), revealing a faceted gold atomiser. It gives one
+     spray of fine atomised mist, then the cap settles back on.
+     One click, one spray; clicks during a spray are ignored.
+     The cap is hidden on the page while it's drawn here.
+  ========================================= */
+
+  (() => {
+    const bottleBox = document.querySelector(".bottle");
+    const bottleImg = document.querySelector(".bottle-lit");
+    const shadowImg = document.querySelector(".bottle-shadow");
+    if (!bottleBox || !bottleImg) return;
+
+    const layer = document.createElement("canvas");
+    layer.className = "spray-layer";
+    layer.setAttribute("aria-hidden", "true");
+    stage.appendChild(layer);
+    const ctx = layer.getContext("2d");
+    const hasFilter = "filter" in ctx;
+
+    // In the bottle image (900 × 1128)
+    const CUT = 211;                         // where the cap ends and the neck begins
+    const NECK = { x0: 306, x1: 598, cx: 452 };
+    const LIFT = 175;                        // how far the cap floats up
+    const D = { fw: 150, fh: 30, ridges: 2, sw: 28, sh: 16, hw: 116, hh: 72, nx: 50, ny: 38 };
+    const T = { up: 850, hold: 150, spray: 450, linger: 1500, down: 900 };
+
+    let W = 0, H = 0, dpr = 1;
+    let seq = -1, capT = 0, press = 0, pressStart = -1, emitUntil = 0, glint = -1, running = false, last = 0;
+    let parts = [], puffs = [];
+    let geo = null;                          // the bottle on screen, in stage px
+
+    function size() {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = stage.clientWidth; H = stage.clientHeight;
+      layer.width = Math.round(W * dpr); layer.height = Math.round(H * dpr);
+    }
+    window.addEventListener("resize", size);
+    size();
+
+    function measure() {
+      const st = stage.getBoundingClientRect(), b = bottleImg.getBoundingClientRect();
+      if (!b.width) return null;
+      return { x: b.left - st.left, y: b.top - st.top, w: b.width, h: b.height, k: b.width / 900 };
+    }
+    const ready = () => (values["bottle-in"] || 0) > 0.98 && bottleImg.complete && bottleImg.naturalWidth;
+
+    // ---- polished gold ----
+    function goldBand(x0, x1) {
+      const g = ctx.createLinearGradient(x0, 0, x1, 0);
+      [[0, "#3a2810"], [0.1, "#7c5c28"], [0.26, "#e9cf92"], [0.34, "#fff3d4"], [0.42, "#d6b066"], [0.62, "#86642c"], [0.84, "#b48c4c"], [1, "#3a2810"]]
+        .forEach(([o, c]) => g.addColorStop(o, c));
+      return g;
+    }
+    function cylinder(cx, top, w, h, ry, ridges = 0) {
+      const x0 = cx - w / 2, x1 = cx + w / 2;
+      ctx.fillStyle = goldBand(x0, x1);
+      ctx.beginPath();
+      ctx.moveTo(x0, top); ctx.lineTo(x0, top + h);
+      ctx.ellipse(cx, top + h, w / 2, ry, 0, Math.PI, 0, true);
+      ctx.lineTo(x1, top); ctx.closePath(); ctx.fill();
+      if (ridges) {
+        ctx.strokeStyle = "rgba(40,26,8,0.55)"; ctx.lineWidth = Math.max(0.6, w * 0.006);
+        for (let i = 1; i <= ridges; i++) {
+          ctx.beginPath(); ctx.ellipse(cx, top + h * i / (ridges + 1), w / 2, ry, 0, 0, Math.PI); ctx.stroke();
+        }
+      }
+      const tg = ctx.createLinearGradient(x0, top - ry, x1, top + ry);
+      tg.addColorStop(0, "#8a6a32"); tg.addColorStop(0.45, "#f6e2b0"); tg.addColorStop(1, "#6e5122");
+      ctx.fillStyle = tg;
+      ctx.beginPath(); ctx.ellipse(cx, top, w / 2, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,240,205,0.55)"; ctx.lineWidth = Math.max(0.5, w * 0.008);
+      ctx.beginPath(); ctx.ellipse(cx, top, w / 2, ry, 0, Math.PI, Math.PI * 2); ctx.stroke();
+    }
+    function shade(t) {
+      const c0 = [58, 40, 16], c1 = [182, 140, 76], c2 = [255, 240, 204];
+      const m = t < 0.6 ? t / 0.6 : (t - 0.6) / 0.4, A = t < 0.6 ? c0 : c1, B = t < 0.6 ? c1 : c2;
+      return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * m)).join(",")})`;
+    }
+    const headTop = (dip) => CUT - D.fh - D.sh - D.hh + dip;
+    function nozzle(g) {
+      const dip = press * 9;
+      return { x: g.x + (NECK.cx - D.nx) * g.k, y: g.y + (headTop(dip) + D.ny) * g.k };
+    }
+
+    // ---- the faceted atomiser on the open neck ----
+    function drawAtomiser(g, now) {
+      const k = g.k, X = (u) => g.x + u * k, Y = (v) => g.y + v * k;
+      const cx = X(NECK.cx), dip = press * 9, aTop = headTop(dip);
+      const nr = (NECK.x1 - NECK.x0) / 2 * k;
+      ctx.save();
+      const ng = ctx.createRadialGradient(cx, Y(CUT), 0, cx, Y(CUT), nr);
+      ng.addColorStop(0, "#1a140c"); ng.addColorStop(1, "#060403");
+      ctx.fillStyle = ng;
+      ctx.beginPath(); ctx.ellipse(cx, Y(CUT), nr, 10 * k, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(214,170,96,0.75)"; ctx.lineWidth = 2 * k;
+      ctx.beginPath(); ctx.ellipse(cx, Y(CUT), nr, 10 * k, 0, 0, Math.PI * 2); ctx.stroke();
+
+      cylinder(cx, Y(CUT - D.fh), D.fw * k, D.fh * k, 8 * k * D.fw / 156, D.ridges);
+      cylinder(cx, Y(CUT - D.fh - D.sh + dip), D.sw * k, D.sh * k, 3 * k);
+
+      // an octagonal head: four visible faces lit differently, a faceted top
+      const hw = D.hw * k, hh = D.hh * k, top = Y(aTop);
+      const edge = (deg) => cx + Math.sin(deg * Math.PI / 180) * hw / 2 / Math.cos(22.5 * Math.PI / 180);
+      const lights = [0.25, 0.95, 0.55, 0.15];
+      [-67.5, -22.5, 22.5, 67.5].forEach((f, i) => {
+        const x0 = edge(f - 22.5), x1 = edge(f + 22.5);
+        const lg = ctx.createLinearGradient(0, top, 0, top + hh);
+        lg.addColorStop(0, shade(Math.min(1, lights[i] + 0.1))); lg.addColorStop(1, shade(lights[i] * 0.8));
+        ctx.fillStyle = lg; ctx.fillRect(x0, top, x1 - x0 + 0.5, hh);
+      });
+      ctx.strokeStyle = "rgba(255,240,205,0.6)"; ctx.lineWidth = 1 * k;
+      [-45, 0, 45].forEach((deg) => { const x = edge(deg); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + hh); ctx.stroke(); });
+      const ry = 10 * k, R = hw / 2 / Math.cos(22.5 * Math.PI / 180);
+      const pts = [...Array(8)].map((_, i) => { const a = (i * 45 + 22.5) * Math.PI / 180; return [cx + Math.sin(a) * R, top - Math.cos(a) * ry]; });
+      pts.forEach((p, i) => {
+        const q = pts[(i + 1) % 8];
+        ctx.fillStyle = shade([0.9, 0.7, 0.5, 0.35, 0.3, 0.45, 0.75, 1][i]);
+        ctx.beginPath(); ctx.moveTo(cx, top - ry * 0.1); ctx.lineTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.closePath(); ctx.fill();
+      });
+      ctx.strokeStyle = "rgba(255,244,214,0.7)"; ctx.lineWidth = 0.8 * k;
+      ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
+
+      const n = nozzle(g);
+      ctx.fillStyle = "#1a1006";
+      ctx.beginPath(); ctx.ellipse(n.x, n.y, 3 * k, 5 * k, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,236,190,0.8)"; ctx.lineWidth = 1.3 * k;
+      ctx.beginPath(); ctx.ellipse(n.x, n.y, 4.6 * k, 7 * k, 0, 0, Math.PI * 2); ctx.stroke();
+
+      // a glint sweeps across the gold as it's revealed
+      if (glint >= 0) {
+        const t = (now - glint) / 1100;
+        if (t > 1) glint = -1;
+        else if (t > 0) {
+          const gx = X(NECK.cx - D.fw / 2 + D.fw * t);
+          const gl = ctx.createLinearGradient(gx - 20 * k, 0, gx + 20 * k, 0);
+          gl.addColorStop(0, "rgba(255,246,220,0)"); gl.addColorStop(0.5, `rgba(255,246,220,${(0.55 * Math.sin(Math.PI * t)).toFixed(3)})`); gl.addColorStop(1, "rgba(255,246,220,0)");
+          ctx.globalCompositeOperation = "lighter";
+          ctx.fillStyle = gl;
+          ctx.fillRect(cx - hw / 2, Y(aTop - 8), hw, hh + 8 * k);
+          ctx.fillRect(cx - D.fw / 2 * k, Y(CUT - D.fh), D.fw * k, D.fh * k);
+        }
+      }
+      ctx.restore();
+    }
+
+    // ---- the cap, matching the bottle as the page shows it ----
+    function drawCap(g, now) {
+      const k = g.k;
+      const e = capT < 0.5 ? 4 * capT * capT * capT : 1 - Math.pow(-2 * capT + 2, 3) / 2;
+      const hover = capT > 0.98 ? Math.sin(now / 900) * 4 : 0;
+      const tilt = (capT > 0.98 ? Math.sin(now / 1300) * 0.012 : 0) + Math.sin(Math.PI * capT) * 0.04;
+      const joined = parseFloat(getComputedStyle(stage).getPropertyValue("--joined")) || 0;
+      ctx.save();
+      ctx.translate(g.x + NECK.cx * k, g.y + (CUT / 2 - LIFT * e + hover) * k);
+      ctx.rotate(tilt);
+      if (capT > 0.02) {                     // a faint gold underglow as it hovers
+        const ug = ctx.createRadialGradient(0, CUT / 2 * k, 0, 0, CUT / 2 * k, 200 * k);
+        ug.addColorStop(0, `rgba(250,228,180,${(0.22 * e).toFixed(3)})`); ug.addColorStop(1, "rgba(231,190,120,0)");
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.scale(1, 0.15); ctx.translate(0, CUT / 2 * k * (1 / 0.15 - 1));
+        ctx.fillStyle = ug; ctx.fillRect(-200 * k, CUT / 2 * k - 200 * k, 400 * k, 400 * k); ctx.restore();
+      }
+      ctx.drawImage(bottleImg, 0, 0, 900, CUT, -NECK.cx * k, -CUT / 2 * k, g.w, CUT * k);
+      if (joined > 0) {                      // the page brightens the bottle for those who joined
+        ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = Math.min(1, joined * 0.6);
+        ctx.drawImage(bottleImg, 0, 0, 900, CUT, -NECK.cx * k, -CUT / 2 * k, g.w, CUT * k);
+      }
+      ctx.restore();
+    }
+
+    // ---- the atomised mist ----
+    const sprite = (stops) => {
+      const c = document.createElement("canvas"); c.width = c.height = 64;
+      const g = c.getContext("2d"); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      stops.forEach(([o, col]) => r.addColorStop(o, col));
+      g.fillStyle = r; g.fillRect(0, 0, 64, 64); return c;
+    };
+    const dot = sprite([[0, "rgba(255,246,222,1)"], [0.25, "rgba(246,220,166,0.7)"], [0.6, "rgba(220,178,108,0.2)"], [1, "rgba(200,155,85,0)"]]);
+    const vapour = sprite([[0, "rgba(255,232,186,1)"], [0.35, "rgba(238,198,128,0.55)"], [0.7, "rgba(214,166,92,0.15)"], [1, "rgba(200,150,80,0)"]]);
+    const fog = document.createElement("canvas"), fctx = fog.getContext("2d");
+    const FOG = 0.5;
+    const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+
+    function emit(g, dt) {
+      const n = nozzle(g), unit = g.k, base = Math.atan2(-0.05, -1);
+      let c = Math.round(dt * 6 + Math.random());
+      for (let i = 0; i < c; i++) {           // a fast fan of fine droplets
+        const a = base + gauss() * 0.2, sp = (0.15 + Math.random() * 0.85) * unit * 4.4;
+        parts.push({ x: n.x, y: n.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 1300 * (0.6 + Math.random() * 0.8),
+          r: Math.max(0.35, unit * 1.1 * (0.6 + Math.random() * 0.8)) });
+      }
+      c = Math.round(dt * 1.1 + Math.random());
+      for (let i = 0; i < c; i++) {           // blooming into vapour
+        const a = base + gauss() * 0.3, sp = (0.05 + Math.pow(Math.random(), 1.1) * 0.95) * unit * 2.6;
+        puffs.push({ x: n.x, y: n.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 2800 * (0.7 + Math.random() * 0.6),
+          r0: 6 * unit, r1: 85 * unit * (0.6 + Math.random() * 0.8), seed: Math.random() * 6.28 });
+      }
+    }
+
+    function drawJet(g, now) {
+      if (now > emitUntil) return;
+      const unit = g.k, n = nozzle(g), flick = 0.85 + 0.15 * Math.sin(now / 23), L = 170 * unit;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.translate(n.x, n.y); ctx.scale(-1, 1); ctx.rotate(-0.05);
+      const jg = ctx.createLinearGradient(0, 0, L, 0);
+      jg.addColorStop(0, `rgba(255,246,224,${(0.5 * flick).toFixed(3)})`); jg.addColorStop(0.35, `rgba(246,218,160,${(0.18 * flick).toFixed(3)})`); jg.addColorStop(1, "rgba(231,190,120,0)");
+      ctx.fillStyle = jg;
+      if (hasFilter) ctx.filter = `blur(${Math.max(1.5, 4 * unit)}px)`;
+      ctx.beginPath(); ctx.moveTo(0, -2 * unit); ctx.lineTo(L, -L * 0.16); ctx.lineTo(L, L * 0.16); ctx.lineTo(0, 2 * unit); ctx.closePath(); ctx.fill();
+      if (hasFilter) ctx.filter = "none";
+      ctx.globalAlpha = 0.7 * flick;
+      ctx.drawImage(dot, -8 * unit, -8 * unit, 16 * unit, 16 * unit);
+      ctx.restore();
+    }
+
+    function drawMist(g, dt) {
+      const unit = g.k;
+      if (puffs.length) {
+        const fw = Math.ceil(W * FOG), fh = Math.ceil(H * FOG);
+        if (fog.width !== fw || fog.height !== fh) { fog.width = fw; fog.height = fh; }
+        fctx.setTransform(1, 0, 0, 1, 0, 0);
+        fctx.clearRect(0, 0, fw, fh);
+        fctx.setTransform(FOG, 0, 0, FOG, 0, 0);
+        fctx.globalCompositeOperation = "lighter";
+        for (let i = puffs.length - 1; i >= 0; i--) {
+          const p = puffs[i]; p.life += dt;
+          if (p.life > p.max) { puffs.splice(i, 1); continue; }
+          const f = Math.exp(-dt / 300); p.vx *= f; p.vy *= f;
+          p.vx += Math.sin(p.seed + p.life / 500) * 0.00005 * dt * unit;
+          p.vy += (Math.cos(p.seed + p.life / 650) * 0.00004 - 0.000025) * dt * unit;
+          p.x += p.vx * dt; p.y += p.vy * dt;
+          const t = p.life / p.max, r = p.r0 + (p.r1 - p.r0) * (1 - Math.pow(1 - t, 2.2));
+          fctx.globalAlpha = 0.03 * Math.min(1, p.life / 90) * Math.pow(1 - t, 1.3);
+          fctx.drawImage(vapour, p.x - r, p.y - r, r * 2, r * 2);
+        }
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = "lighter";
+        if (hasFilter) {
+          ctx.filter = `blur(${Math.max(2, 4 * unit * dpr)}px)`;
+          ctx.drawImage(fog, 0, 0, fw, fh, 0, 0, layer.width, layer.height);
+          ctx.filter = "none";
+        }
+        ctx.drawImage(fog, 0, 0, fw, fh, 0, 0, layer.width, layer.height);
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i]; p.life += dt;
+        if (p.life > p.max) { parts.splice(i, 1); continue; }
+        const f = Math.exp(-dt / 200); p.vx *= f; p.vy *= f;
+        p.vy -= 0.00002 * dt * unit;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        const t = p.life / p.max, a = 0.75 * Math.pow(1 - t, 1.3), v = Math.hypot(p.vx, p.vy);
+        if (v > 0.05) {
+          const L = Math.min(60 * unit, v * 26);
+          ctx.strokeStyle = `rgba(252,226,176,${a.toFixed(3)})`;
+          ctx.lineWidth = Math.max(0.7, p.r * 0.8);
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx / v * L, p.y - p.vy / v * L); ctx.stroke();
+        } else {
+          ctx.fillStyle = `rgba(255,236,196,${(a * 0.66).toFixed(3)})`;
+          ctx.fillRect(p.x, p.y, p.r, p.r);
+        }
+      }
+      ctx.restore();
+    }
+
+    // ---- the sequence ----
+    function frame(now) {
+      const dt = Math.min(50, now - last); last = now;
+      const t = now - seq;
+      const tPress = T.up + T.hold, tDown = tPress + T.spray + T.linger;
+      if (t < T.up) capT = t / T.up;
+      else if (t < tDown) capT = 1;
+      else capT = Math.max(0, 1 - (t - tDown) / T.down);
+      if (t >= tPress && pressStart < 0 && emitUntil < seq) {
+        pressStart = now; emitUntil = now + (reducedMotion.matches ? 120 : T.spray);
+      }
+      if (pressStart >= 0) {
+        const pt = now - pressStart;
+        press = pt < 110 ? pt / 110 : Math.max(0, 1 - (pt - 110) / 300);
+        if (pt > 410) { pressStart = -1; press = 0; }
+      }
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, layer.width, layer.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const g = measure() || geo;
+      geo = g;
+      const done = t >= tDown + T.down;
+      if (g && !done) {
+        if (now < emitUntil) emit(g, dt);
+        drawAtomiser(g, now);
+        drawCap(g, now);
+        // match the page's silhouette while the light is still reaching the bottle
+        const dark = shadowImg ? parseFloat(getComputedStyle(shadowImg).opacity) || 0 : 0;
+        if (dark > 0.01) {
+          ctx.save(); ctx.globalCompositeOperation = "source-atop";
+          ctx.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`; ctx.fillRect(0, 0, W, H); ctx.restore();
+        }
+        drawJet(g, now);
+        drawMist(g, dt);
+      }
+      if (done) {
+        bottleBox.classList.remove("is-spraying");
+        seq = -1; capT = 0;
+        if (g && (parts.length || puffs.length)) { drawMist(g, dt); requestAnimationFrame(frame); return; }
+        running = false;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, layer.width, layer.height);
+        return;
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function spray() {
+      if (seq >= 0 || !ready()) return;
+      geo = measure();
+      if (!geo) return;
+      seq = performance.now();
+      glint = seq + 500;
+      pressStart = -1; emitUntil = 0;
+      bottleBox.classList.add("is-spraying");
+      if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
+    }
+
+    // A click on the bottle (but not on the form, links or dialogs) sprays it
+    function onBottle(x, y) {
+      const g = measure();
+      if (!g || !ready()) return false;
+      return x >= g.x + g.w * 0.03 && x <= g.x + g.w * 0.97 && y >= g.y && y <= g.y + g.h * 0.94;
+    }
+    const interactive = "a, button, input, textarea, select, label, form, dialog, [role='dialog'], .sign-pad, .waitlist, .wish-sky";
+    document.addEventListener("click", (ev) => {
+      if (ev.target.closest && ev.target.closest(interactive)) return;
+      const st = stage.getBoundingClientRect();
+      if (onBottle(ev.clientX - st.left, ev.clientY - st.top)) spray();
+    });
+    // the pointer becomes a hand over the bottle
+    stage.addEventListener("pointermove", (ev) => {
+      if (ev.pointerType !== "mouse") return;
+      const st = stage.getBoundingClientRect();
+      const over = !(ev.target.closest && ev.target.closest(interactive)) && onBottle(ev.clientX - st.left, ev.clientY - st.top);
+      stage.classList.toggle("is-over-bottle", over);
+    });
   })();
 
 

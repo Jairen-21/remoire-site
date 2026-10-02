@@ -2470,3 +2470,22 @@ svg {
   height: 100%;
   pointer-events: none;
 }
+
+/* ---- The atomiser: the cap lifts and the bottle sprays (drawn on its own layer) ---- */
+.spray-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;          /* with the bottle, later in the page = in front of it; below the copy */
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* While the cap is drawn floating above, hide it on the page */
+.bottle.is-spraying .bottle-lit,
+.bottle.is-spraying .bottle-shadow {
+  -webkit-clip-path: inset(18.71% 0 0 0);
+          clip-path: inset(18.71% 0 0 0);
+}
+
+.brand-sticky.is-over-bottle { cursor: pointer; }
