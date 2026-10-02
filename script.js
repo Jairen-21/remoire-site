@@ -1564,14 +1564,16 @@
     }
 
     // ---- the cap, matching the bottle as the page shows it ----
-    function drawCap(g, now) {
-      const k = g.k;
+    function capPose(now) {               // during a spray: up, hovering, then back down
       const e = capT < 0.5 ? 4 * capT * capT * capT : 1 - Math.pow(-2 * capT + 2, 3) / 2;
       const hover = capT > 0.98 ? Math.sin(now / 900) * 4 : 0;
-      const tilt = (capT > 0.98 ? Math.sin(now / 1300) * 0.012 : 0) + Math.sin(Math.PI * capT) * 0.04;
+      return { lift: LIFT * e - hover, tilt: (capT > 0.98 ? Math.sin(now / 1300) * 0.012 : 0) + Math.sin(Math.PI * capT) * 0.04, e };
+    }
+    function drawCap(g, pose) {
+      const k = g.k, e = pose.e, tilt = pose.tilt;
       const joined = parseFloat(getComputedStyle(stage).getPropertyValue("--joined")) || 0;
       ctx.save();
-      ctx.translate(g.x + NECK.cx * k, g.y + (CUT / 2 - LIFT * e + hover) * k);
+      ctx.translate(g.x + NECK.cx * k, g.y + (CUT / 2 - pose.lift) * k);
       ctx.rotate(tilt);
       if (capT > 0.02) {                     // a faint gold underglow as it hovers
         const ug = ctx.createRadialGradient(0, CUT / 2 * k, 0, 0, CUT / 2 * k, 200 * k);
@@ -1690,6 +1692,7 @@
     // ---- the sequence ----
     function frame(now) {
       const dt = Math.min(50, now - last); last = now;
+      if (seq < 0 && teaseAt >= 0) { tease(now); return; }
       const t = now - seq;
       const tPress = T.up + T.hold, tDown = tPress + T.spray + T.linger;
       if (t < T.up) capT = t / T.up;
@@ -1713,7 +1716,7 @@
       if (g && !done) {
         if (now < emitUntil) emit(g, dt);
         drawAtomiser(g, now);
-        drawCap(g, now);
+        drawCap(g, capPose(now));
         // match the page's silhouette while the light is still reaching the bottle
         const dark = shadowImg ? parseFloat(getComputedStyle(shadowImg).opacity) || 0 : 0;
         if (dark > 0.01) {
@@ -1734,8 +1737,59 @@
       requestAnimationFrame(frame);
     }
 
+    // ---- the tease: now and then the cap lifts a few millimetres and settles,
+    //      a glimpse of gold beneath it. It stops for good after the first spray.
+    const TEASE = 1300, TEASE_LIFT = 20;
+    let teaseAt = -1;
+    function tease(now) {
+      const u = (now - teaseAt) / TEASE;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, layer.width, layer.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const g = measure();
+      if (u >= 1 || !g || !ready()) {
+        teaseAt = -1; running = false;
+        bottleBox.classList.remove("is-spraying");
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, layer.width, layer.height);
+        return;
+      }
+      // a lift and a smaller second lift, like something light settling
+      const lift = u < 0.58 ? TEASE_LIFT * Math.sin(Math.PI * u / 0.58) : TEASE_LIFT * 0.3 * Math.sin(Math.PI * (u - 0.58) / 0.42);
+      press = 0;
+      drawAtomiser(g, now);
+      drawCap(g, { lift, tilt: Math.sin(Math.PI * 2 * u) * 0.012, e: lift / LIFT });
+      const dark = shadowImg ? parseFloat(getComputedStyle(shadowImg).opacity) || 0 : 0;
+      if (dark > 0.01) {
+        ctx.save(); ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`; ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
+      requestAnimationFrame(frame);
+    }
+
+    const SPRAYED = "remoire-sprayed";
+    let sprayed = false;
+    try { sprayed = localStorage.getItem(SPRAYED) === "1"; } catch (e) {}
+    let litSince = 0, teases = 0, nextTease = 0;
+    setInterval(() => {
+      if (sprayed || reducedMotion.matches || document.hidden || running) return;
+      const lit = (values.lit || 0) >= 0.98 && ready();
+      if (!lit) { litSince = 0; return; }
+      const now = performance.now();
+      if (!litSince) { litSince = now; nextTease = now + 4000; }
+      const busy = document.activeElement && document.activeElement.closest &&
+        document.activeElement.closest("input, textarea, .sign-pad");
+      if (busy || now < nextTease) return;
+      teases++;
+      nextTease = now + (teases < 3 ? 12000 : 20000);
+      teaseAt = now;
+      bottleBox.classList.add("is-spraying");
+      running = true; last = now; requestAnimationFrame(frame);
+    }, 400);
+
     function spray() {
       if (seq >= 0 || !ready()) return;
+      if (!sprayed) { sprayed = true; try { localStorage.setItem(SPRAYED, "1"); } catch (e) {} }
+      teaseAt = -1;
       geo = measure();
       if (!geo) return;
       seq = performance.now();
