@@ -1766,21 +1766,23 @@
       requestAnimationFrame(frame);
     }
 
-    const SPRAYED = "remoire-sprayed";
-    let sprayed = false;
-    try { sprayed = localStorage.getItem(SPRAYED) === "1"; } catch (e) {}
-    let litSince = 0, teases = 0, nextTease = 0;
+    // It keeps teasing every 12 seconds until the bottle has been sprayed
+    // three times; the count is remembered on this device.
+    const SPRAYS = "remoire-sprays", STOP_AFTER = 3, EVERY = 12000, FIRST = 4000;
+    let sprays = 0;
+    try { sprays = parseInt(localStorage.getItem(SPRAYS) || "0", 10) || 0; } catch (e) {}
+    let litSince = 0, nextTease = 0;
     setInterval(() => {
-      if (sprayed || reducedMotion.matches || document.hidden || running) return;
+      if (sprays >= STOP_AFTER || reducedMotion.matches || document.hidden) return;
+      const now = performance.now();
+      if (running) { nextTease = Math.max(nextTease, now + EVERY); return; }   // the clock restarts after a spray
       const lit = (values.lit || 0) >= 0.98 && ready();
       if (!lit) { litSince = 0; return; }
-      const now = performance.now();
-      if (!litSince) { litSince = now; nextTease = now + 4000; }
+      if (!litSince) { litSince = now; nextTease = now + FIRST; }
       const busy = document.activeElement && document.activeElement.closest &&
         document.activeElement.closest("input, textarea, .sign-pad");
       if (busy || now < nextTease) return;
-      teases++;
-      nextTease = now + (teases < 3 ? 12000 : 20000);
+      nextTease = now + EVERY;
       teaseAt = now;
       bottleBox.classList.add("is-spraying");
       running = true; last = now; requestAnimationFrame(frame);
@@ -1788,11 +1790,19 @@
 
     function spray() {
       if (seq >= 0 || !ready()) return;
-      if (!sprayed) { sprayed = true; try { localStorage.setItem(SPRAYED, "1"); } catch (e) {} }
+      sprays++;
+      try { localStorage.setItem(SPRAYS, String(sprays)); } catch (e) {}
+      // tapped mid-tease: carry on upward from where the cap already is
+      let from = 0;
+      if (teaseAt >= 0) {
+        const u = (performance.now() - teaseAt) / TEASE;
+        const lift = u < 0.58 ? TEASE_LIFT * Math.sin(Math.PI * u / 0.58) : TEASE_LIFT * 0.3 * Math.sin(Math.PI * (u - 0.58) / 0.42);
+        while (from < 0.5 && LIFT * 4 * from * from * from < lift) from += 0.005;
+      }
       teaseAt = -1;
       geo = measure();
       if (!geo) return;
-      seq = performance.now();
+      seq = performance.now() - from * T.up;
       glint = seq + 500;
       pressStart = -1; emitUntil = 0;
       bottleBox.classList.add("is-spraying");
