@@ -42,8 +42,8 @@
   </script>
 
   <link rel="preload" as="image" href="assets/loader-moon.webp" fetchpriority="high">
-  <link rel="stylesheet" href="style.css?v=20261003a">
-  <script src="script.js?v=20261003a" defer></script>
+  <link rel="stylesheet" href="style.css?v=20261007a">
+  <script src="script.js?v=20261007a" defer></script>
 </head>
 
 <body>
@@ -258,7 +258,10 @@
             </div>
           </form>
 
-          <button type="button" class="birth-moon-open">Your birth moon</button>
+          <button type="button" class="birth-moon-open">
+            <canvas class="bm-tiny" width="80" height="80" aria-hidden="true"></canvas>
+            <span>Your birth moon</span>
+          </button>
           <p class="copyright">© <span class="copyright-year">2026</span> REMOIRE. All rights reserved.</p>
 
         </div>
@@ -304,14 +307,24 @@
     <div class="birth-moon-inner">
       <h2 class="birth-moon-title" id="birth-moon-title">Your birth moon</h2>
 
-      <canvas class="birth-moon-disc" width="400" height="400" aria-hidden="true"></canvas>
+      <div class="birth-moon-wrap">
+        <canvas class="birth-moon-disc" width="400" height="400" aria-hidden="true"></canvas>
+        <div class="birth-moon-flash" aria-hidden="true"></div>
+        <canvas class="birth-moon-fx" aria-hidden="true"></canvas>
+      </div>
+      <p class="bm-when" aria-live="polite"></p>
 
       <form class="birth-moon-form" novalidate>
-        <label for="birth-date" class="birth-moon-label">The night you were born</label>
-        <div class="birth-moon-field">
-          <input type="date" id="birth-date" min="1900-01-01" required>
-          <button type="submit" class="birth-moon-reveal">Reveal</button>
+        <p class="bm-live" aria-hidden="true"></p>
+        <p class="birth-moon-label" id="bm-label">The night you were born</p>
+        <div class="bm-engraved" role="group" aria-labelledby="bm-label">
+          <input id="bm-d" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Day" autocomplete="bday-day">
+          <i aria-hidden="true">·</i>
+          <input id="bm-m" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Month" autocomplete="bday-month">
+          <i aria-hidden="true">·</i>
+          <input id="bm-y" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Year" autocomplete="bday-year" class="is-year">
         </div>
+        <button type="submit" class="birth-moon-reveal">Reveal</button>
         <p class="birth-moon-note">Your birthday stays on this device.</p>
       </form>
 
@@ -320,6 +333,7 @@
         <p class="bm-phase"></p>
         <p class="bm-month"></p>
         <p class="bm-line"></p>
+        <p class="bm-return"></p>
       </div>
 
       <div class="birth-moon-actions">

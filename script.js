@@ -3175,26 +3175,43 @@
      here in the browser (a standard low-precision lunar
      model, good to within a few hours). The date is kept on
      this device only.
+
+     The way in is a small gold moon lit as tonight's moon.
+     They type the date in engraved gold numbers; the big moon
+     follows as they type. Reveal: a shooting star lands,
+     bursts into gold dust, the dust gathers into the dark
+     moon, then sunlight sweeps across it to that night's
+     phase. Everything glides; nothing jumps.
   ========================================= */
 
   const birthBox = document.querySelector(".birth-moon");
   const birthOpenBtn = document.querySelector(".birth-moon-open");
 
   if (birthBox && birthOpenBtn) {
-    const bForm = birthBox.querySelector(".birth-moon-form");
-    const bInput = birthBox.querySelector("#birth-date");
-    const bNote = birthBox.querySelector(".birth-moon-note");
-    const bResult = birthBox.querySelector(".birth-moon-result");
-    const bDate = birthBox.querySelector(".bm-date");
-    const bPhase = birthBox.querySelector(".bm-phase");
-    const bMonth = birthBox.querySelector(".bm-month");
-    const bLine = birthBox.querySelector(".bm-line");
-    const bCanvas = birthBox.querySelector(".birth-moon-disc");
-    const bSave = birthBox.querySelector(".bm-save");
-    const bAgain = birthBox.querySelector(".bm-again");
-    const bClose = birthBox.querySelector(".bm-close");
+    const q = (s) => birthBox.querySelector(s);
+    const bForm = q(".birth-moon-form");
+    const bNote = q(".birth-moon-note");
+    const bLive = q(".bm-live");
+    const bWhen = q(".bm-when");
+    const bTitle = q(".birth-moon-title");
+    const bWrap = q(".birth-moon-wrap");
+    const bFlash = q(".birth-moon-flash");
+    const bFx = q(".birth-moon-fx");
+    const bResult = q(".birth-moon-result");
+    const bDate = q(".bm-date");
+    const bPhase = q(".bm-phase");
+    const bMonth = q(".bm-month");
+    const bLine = q(".bm-line");
+    const bReturn = q(".bm-return");
+    const bCanvas = q(".birth-moon-disc");
+    const bSave = q(".bm-save");
+    const bAgain = q(".bm-again");
+    const bClose = q(".bm-close");
+    const bTiny = birthOpenBtn.querySelector(".bm-tiny");
+    const ty = { d: q("#bm-d"), m: q("#bm-m"), y: q("#bm-y") };
     const BIRTH_KEY = "remoire-birth";
     const NOTE = bNote.textContent;
+    const DAY = 86400000;
 
     const PHASE_NAMES = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous",
                          "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
@@ -3236,6 +3253,7 @@
       if (E < 282) return 6;
       return 7;
     }
+    const litPct = (E) => Math.round((1 - Math.cos(E * Math.PI / 180)) / 2 * 100);
 
     /* ---- The moon's surface ----
        REMOIRE's own gold moon (assets/birth-moon.webp), lit in the
@@ -3259,7 +3277,6 @@
       }
       return surfaceLoading;
     }
-    loadSurface().catch(() => {});
 
     // Draw the moon as lit on the given night. E: 0 = new, 180 = full.
     function paintMoon(canvas, E) {
@@ -3295,38 +3312,49 @@
       return true;
     }
 
+    // The way in: tonight's moon, as it really is
+    loadSurface().then(() => { if (bTiny) paintMoon(bTiny, elongation(new Date())); }, () => {});
+
     function sizeDisc() {
       const css = bCanvas.getBoundingClientRect().width || 220;
       const px = Math.round(Math.min(2, window.devicePixelRatio || 1) * css);
       if (bCanvas.width !== px) { bCanvas.width = px; bCanvas.height = px; }
     }
 
+    // While the moon moves, paint it small and scale it up; settle sharp after
+    const quick = document.createElement("canvas");
+    quick.width = quick.height = 200;
+    function paintQuick(E) {
+      if (!paintMoon(quick, E)) return;
+      const c = bCanvas.getContext("2d");
+      c.clearRect(0, 0, bCanvas.width, bCanvas.height);
+      c.drawImage(quick, 0, 0, bCanvas.width, bCanvas.height);
+    }
+    let sharpTimer = 0;
     function drawDisc(E) {
       if (!paintMoon(bCanvas, E)) loadSurface().then(() => paintMoon(bCanvas, E), () => {});
     }
 
-    let discRun = 0;
-    function revealDisc(E) {
-      const run = ++discRun;
-      const waning = E > 180;
-      const w = waning ? 360 - E : E;
-      if (reducedMotion.matches) { drawDisc(E); return; }
-      let start = 0;
-      const tick = (now) => {
-        if (run !== discRun) return;
-        if (!surface) { loadSurface().then(() => requestAnimationFrame(tick), () => {}); return; }
-        if (!start) start = now;
-        const t = Math.min(1, (now - start) / 2000);
-        const cur = w * ease(t);
-        drawDisc(waning ? 360 - cur : cur);
-        if (t < 1) requestAnimationFrame(tick);
+    // The disc follows the typed date, the short way round
+    let shownE = 60, targetE = 60, glideRaf = 0;
+    function followE(E) {
+      targetE = E;
+      if (reducedMotion.matches) { shownE = E; drawDisc(E); return; }
+      if (glideRaf) return;
+      const step = () => {
+        const d = ((targetE - shownE + 540) % 360) - 180;
+        if (Math.abs(d) < 0.6) { shownE = targetE; drawDisc(shownE); glideRaf = 0; return; }
+        shownE = (shownE + d * 0.2 + 360) % 360;
+        paintQuick(shownE);
+        glideRaf = requestAnimationFrame(step);
       };
-      requestAnimationFrame(tick);
+      glideRaf = requestAnimationFrame(step);
     }
 
-    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const today = new Date();
-    bInput.max = iso(today);
+    const tonight = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 21, 0, 0);
+    const fmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
     let current = null;
 
@@ -3339,56 +3367,252 @@
       if (night > new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59)) return null;
       const E = elongation(night);
       const idx = phaseIndex(E);
-      const pct = Math.round((1 - Math.cos(E * Math.PI / 180)) / 2 * 100);
-      const dateText = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(night);
+      const pct = litPct(E);
+      // the next night the moon looks the same again
+      let next = null;
+      for (let i = 1; i <= 40 && !next; i++) {
+        const n = new Date(tonight.getFullYear(), tonight.getMonth(), tonight.getDate() + i, 21, 0, 0);
+        if (Math.abs(((elongation(n) - E + 540) % 360) - 180) < 6.5) next = n;
+      }
       return {
-        E, idx, pct,
-        dateText: `The night of ${dateText}`,
+        E, idx, pct, night,
+        nights: Math.round((tonight - night) / DAY),
+        dateText: `The night of ${fmt.format(night)}`,
         phase: PHASE_NAMES[idx],
         month: `${pct}% lit, in the month of the ${MONTH_MOONS[mo - 1]}`,
         line: PHASE_LINES[idx],
+        returnText: next ? `Your moon returns on ${fmt.format(next)}` : "",
+        returnDate: next ? fmt.format(next) : "",
       };
     }
 
-    function showResult(r) {
+    // ---- The engraved numbers ----
+    const typedValue = () => {
+      const d = ty.d.value, m = ty.m.value, y = ty.y.value;
+      if (!d || !m || y.length !== 4) return "";
+      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    };
+    function showTyped(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+      ty.d.value = m ? m[3] : ""; ty.m.value = m ? m[2] : ""; ty.y.value = m ? m[1] : "";
+    }
+    function typedChanged() {
+      bNote.textContent = NOTE;
+      bNote.classList.remove("is-error");
+      const r = readingFor(typedValue());
+      if (r) { bLive.textContent = `${r.phase} · ${r.pct}% lit`; followE(r.E); }
+      else bLive.textContent = "";
+    }
+    const order = [ty.d, ty.m, ty.y];
+    order.forEach((inp, i) => {
+      inp.addEventListener("input", () => {
+        const clean = inp.value.replace(/\D/g, "").slice(0, inp.maxLength);
+        if (clean !== inp.value) inp.value = clean;
+        inp.classList.remove("is-cut"); void inp.offsetWidth; inp.classList.add("is-cut");   // each digit cut in with a flash
+        if (inp.value.length === inp.maxLength && order[i + 1]) order[i + 1].focus();
+        typedChanged();
+      });
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !inp.value && order[i - 1]) { e.preventDefault(); order[i - 1].focus(); }
+      });
+    });
+
+    // ---- Moving things smoothly ----
+    // Record where the title and moon are, change the layout, then let them glide
+    function glideLayout(change) {
+      const els = [bTitle, bWrap, bWhen];
+      const before = els.map((el) => el.getBoundingClientRect().top);
+      change();
+      if (reducedMotion.matches) return;
+      els.forEach((el, i) => {
+        const dy = before[i] - el.getBoundingClientRect().top;
+        if (Math.abs(dy) < 1) return;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${dy}px)`;
+        void el.offsetWidth;
+        el.style.transition = "transform 1s cubic-bezier(.22,.7,.2,1)";
+        el.style.transform = "";
+        setTimeout(() => { el.style.transition = ""; }, 1050);
+      });
+    }
+    let run = 0;
+    const easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    function animate(dur, step, done) {
+      const id = run;
+      let start = 0;
+      const tick = (now) => {
+        if (id !== run) return;
+        if (!start) start = now;
+        const t = dur ? Math.min(1, (now - start) / dur) : 1;
+        step(t);
+        if (t < 1) requestAnimationFrame(tick); else done();
+      };
+      requestAnimationFrame(tick);
+    }
+    const later = (ms, fn) => { const id = run; setTimeout(() => { if (id === run) fn(); }, ms); };
+
+    // ---- The reveal: shooting star → gold dust → sunlight ----
+    function fxStart() {
+      const box = bFx.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      bFx.width = Math.round(box.width * dpr); bFx.height = Math.round(box.height * dpr);
+      const ctx = bFx.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, W: box.width, H: box.height, cx: box.width / 2, cy: box.height / 2, R: bWrap.clientWidth / 2 };
+    }
+    const fxClear = () => bFx.getContext("2d").clearRect(0, 0, bFx.width, bFx.height);
+    const glowDot = (() => {
+      const c = document.createElement("canvas"); c.width = c.height = 64;
+      const g = c.getContext("2d"), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      r.addColorStop(0, "rgba(255,240,206,1)"); r.addColorStop(0.35, "rgba(238,200,132,0.5)"); r.addColorStop(1, "rgba(214,166,92,0)");
+      g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+      return c;
+    })();
+    const flash = () => { bFlash.classList.remove("is-on"); void bFlash.offsetWidth; bFlash.classList.add("is-on"); };
+
+    function shootingStar(dur) {
+      const f = fxStart(), sx = f.W * 0.02, sy = f.H * 0.08;
+      animate(dur, (t) => {
+        f.ctx.clearRect(0, 0, f.W, f.H);
+        const e = t * t, x = sx + (f.cx - sx) * e, y = sy + (f.cy - sy) * e;
+        const tx = sx + (f.cx - sx) * Math.max(0, e - 0.25), tyy = sy + (f.cy - sy) * Math.max(0, e - 0.25);
+        const g = f.ctx.createLinearGradient(tx, tyy, x, y);
+        g.addColorStop(0, "rgba(255,232,186,0)"); g.addColorStop(1, "rgba(255,246,222,0.95)");
+        f.ctx.strokeStyle = g; f.ctx.lineWidth = 2; f.ctx.lineCap = "round";
+        f.ctx.beginPath(); f.ctx.moveTo(tx, tyy); f.ctx.lineTo(x, y); f.ctx.stroke();
+        f.ctx.drawImage(glowDot, x - 9, y - 9, 18, 18);
+      }, fxClear);
+    }
+
+    // gold dust bursts out from the impact, then gathers into the moon's shape
+    function gatherDust(dur, done) {
+      const f = fxStart();
+      const src = document.createElement("canvas"); src.width = src.height = 120;
+      paintMoon(src, 180);
+      const px = src.getContext("2d").getImageData(0, 0, 120, 120).data, pts = [];
+      for (let tries = 0; pts.length < 1400 && tries < 40000; tries++) {
+        const x = Math.random() * 120, y = Math.random() * 120, i = ((y | 0) * 120 + (x | 0)) * 4;
+        const b = (px[i] + px[i + 1] + px[i + 2]) / 765;
+        if (px[i + 3] > 200 && Math.random() < b * 1.6 + 0.05) {
+          const a = Math.random() * Math.PI * 2, d = f.R * (0.9 + Math.random() * 1.1);
+          pts.push({ tx: f.cx + (x / 120 - 0.5) * 2 * f.R, ty: f.cy + (y / 120 - 0.5) * 2 * f.R,
+            sx: f.cx + Math.cos(a) * d, sy: f.cy + Math.sin(a) * d, spin: (Math.random() - 0.5) * 2.4, delay: Math.random() * 0.35, b });
+        }
+      }
+      drawDisc(0);                                     // the dark moon waits underneath
+      animate(dur, (t) => {
+        f.ctx.clearRect(0, 0, f.W, f.H);
+        f.ctx.globalCompositeOperation = "lighter";
+        for (const p of pts) {
+          const u = Math.max(0, Math.min(1, (t - p.delay) / 0.6));
+          const ang = p.spin * (1 - u);
+          const dx = p.sx - f.cx, dy = p.sy - f.cy;
+          const ox = f.cx + dx * Math.cos(ang) - dy * Math.sin(ang), oy = f.cy + dx * Math.sin(ang) + dy * Math.cos(ang);
+          const k = Math.min(1, u * 3.2), bx = f.cx + (ox - f.cx) * k, by = f.cy + (oy - f.cy) * k;
+          const w = Math.min(1, Math.max(0, (u - 0.25) / 0.75)), we = w * w * (3 - 2 * w);
+          const x = bx + (p.tx - bx) * we, y = by + (p.ty - by) * we;
+          f.ctx.fillStyle = `rgba(255,${220 + p.b * 30 | 0},${150 + p.b * 60 | 0},${((0.5 + 0.5 * p.b) * (t > 0.85 ? (1 - t) / 0.15 : 1)).toFixed(3)})`;
+          f.ctx.fillRect(x, y, 1.4, 1.4);
+        }
+        bCanvas.style.opacity = String(Math.max(0, (t - 0.65) / 0.3));
+      }, () => { fxClear(); bCanvas.style.opacity = ""; done(); });
+    }
+
+    function reveal(r) {
+      const id = ++run;
+      clearTimeout(sharpTimer);
+      cancelAnimationFrame(glideRaf); glideRaf = 0;
+      if (reducedMotion.matches) {
+        birthBox.classList.add("is-revealing");
+        drawDisc(r.E); land(r);
+        return;
+      }
+      // the numbers fade away, then the moon glides into place
+      bForm.classList.add("is-leaving");
+      later(350, () => {
+        bForm.classList.remove("is-leaving");
+        glideLayout(() => birthBox.classList.add("is-revealing"));
+        later(450, () => {
+          bCanvas.style.transition = "opacity 0.38s ease";
+          bCanvas.style.opacity = "0";                     // the sky clears first
+          shootingStar(675);
+          later(615, () => {
+            bCanvas.style.transition = "";
+            flash();
+            gatherDust(2250, () => {
+              animate(1650, (t) => {
+                const e = easeIO(t) * r.E;
+                if (t < 1) paintQuick(e); else drawDisc(r.E);
+              }, () => { if (id === run) land(r); });
+            });
+          });
+        });
+      });
+    }
+
+    function land(r) {
       current = r;
+      shownE = targetE = r.E;
       bDate.textContent = r.dateText;
       bPhase.textContent = r.phase;
       bMonth.textContent = r.month;
       bLine.textContent = r.line;
-      birthBox.classList.add("has-result");
-      bResult.hidden = false;
-      bSave.hidden = false;
-      bAgain.hidden = false;
-      revealDisc(r.E);
+      bReturn.textContent = "";
+      if (r.returnDate) {
+        bReturn.append("Your moon returns on ");
+        const b = document.createElement("b"); b.textContent = r.returnDate; bReturn.append(b);
+      }
+      flash();
+      bWhen.classList.add("is-fading");
+      later(reducedMotion.matches ? 0 : 380, () => {
+        bWhen.textContent = `${r.nights.toLocaleString("en-GB")} nights ago`;
+        glideLayout(() => {
+          birthBox.classList.remove("is-revealing");
+          birthBox.classList.add("has-result");
+          bResult.hidden = false;
+          bSave.hidden = false;
+          bAgain.hidden = false;
+        });
+        bWhen.classList.remove("is-fading");
+      });
     }
 
     function resetBirth() {
-      discRun++;
+      run++;
+      cancelAnimationFrame(glideRaf); glideRaf = 0;
       current = null;
-      birthBox.classList.remove("has-result");
+      birthBox.classList.remove("has-result", "is-revealing");
+      bForm.classList.remove("is-leaving");
+      bResult.classList.remove("is-leaving");
       bResult.hidden = true;
       bSave.hidden = true;
       bAgain.hidden = true;
+      bCanvas.style.opacity = ""; bCanvas.style.transition = "";
+      fxClear();
+      bWhen.textContent = "";
       bNote.textContent = NOTE;
       bNote.classList.remove("is-error");
-      drawDisc(60);
+      const r = readingFor(typedValue());
+      bLive.textContent = r ? `${r.phase} · ${r.pct}% lit` : "";
+      shownE = targetE = r ? r.E : 60;
+      drawDisc(shownE);
     }
 
+    const finePointer = window.matchMedia("(pointer: fine)");
     function openBirth() {
       if (!birthBox.hidden) return;
-      resetBirth();
       let saved = null;
       try { saved = localStorage.getItem(BIRTH_KEY); } catch (e) {}
-      if (saved) bInput.value = saved;
+      showTyped(saved);
       birthBox.hidden = false;
       document.documentElement.style.overflow = "hidden";
       sizeDisc();
-      drawDisc(60);
-      setTimeout(() => bInput.focus({ preventScroll: true }), 300);
+      resetBirth();
+      // only jump to the numbers where it won't throw up a phone keyboard
+      if (finePointer.matches) setTimeout(() => ty.d.focus({ preventScroll: true }), 300);
     }
 
     function closeBirth() {
+      run++;
       birthBox.hidden = true;
       document.documentElement.style.overflow = "";
       birthOpenBtn.focus({ preventScroll: true });
@@ -3396,26 +3620,29 @@
 
     bForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const r = readingFor(bInput.value);
+      const value = typedValue();
+      const r = readingFor(value);
       if (!r) {
-        bNote.textContent = "Choose a date between 1900 and today";
+        bNote.textContent = "Enter a date between 1900 and today";
         bNote.classList.add("is-error");
-        bInput.focus();
+        (ty.d.value ? (ty.m.value ? ty.y : ty.m) : ty.d).focus();
         return;
       }
-      try { localStorage.setItem(BIRTH_KEY, bInput.value); } catch (e2) {}
-      bInput.blur();
-      showResult(r);
+      try { localStorage.setItem(BIRTH_KEY, value); } catch (e2) {}
+      order.forEach((inp) => inp.blur());
+      reveal(r);
       bClose.focus({ preventScroll: true });
-    });
-    bInput.addEventListener("input", () => {
-      bNote.textContent = NOTE;
-      bNote.classList.remove("is-error");
     });
 
     bAgain.addEventListener("click", () => {
-      resetBirth();
-      bInput.focus({ preventScroll: true });
+      bResult.classList.add("is-leaving");
+      const id = run;
+      setTimeout(() => {
+        if (id !== run) return;
+        bResult.classList.remove("is-leaving");
+        glideLayout(resetBirth);
+        if (finePointer.matches) ty.d.focus({ preventScroll: true });
+      }, reducedMotion.matches ? 0 : 350);
     });
     bClose.addEventListener("click", closeBirth);
     birthBox.addEventListener("click", (e) => { if (e.target === birthBox) closeBirth(); });
@@ -3450,6 +3677,7 @@
             document.fonts.load('400 40px "Cormorant Garamond"'),
             document.fonts.load('500 40px "Cormorant Garamond"'),
             document.fonts.load('600 40px "Cormorant Garamond"'),
+            document.fonts.load('italic 400 40px "Cormorant Garamond"'),
           ]);
         } catch (e) {}
       }
@@ -3527,6 +3755,14 @@
       }
       if (lineText) lines.push(lineText);
       lines.forEach((l, i) => ctx.fillText(l, W / 2, 1540 + i * 62));
+
+      // When it comes back
+      if (r.returnText) {
+        const y = 1540 + lines.length * 62 + 58;
+        ctx.fillStyle = "#a37336";
+        ctx.font = 'italic 400 34px "Cormorant Garamond", Garamond, serif';
+        ctx.fillText(r.returnText, W / 2, y);
+      }
 
       tracked("REMOIRE.CO", 1810, '600 26px "Cormorant Garamond", Garamond, serif', "#c39652", 26 * 0.5);
       return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.9));
