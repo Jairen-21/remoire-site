@@ -1812,7 +1812,8 @@ svg {
 
 .wish-close:hover { color: var(--gold-500); }
 
-.make-wish {
+.make-wish,
+.find-birth-moon {
   padding: 6px 4px;
   background: none;
   border: 0;
@@ -1826,7 +1827,8 @@ svg {
   transition: color 0.4s ease;
 }
 
-.make-wish:hover { color: var(--gold-wordmark-light); }
+.make-wish:hover,
+.find-birth-moon:hover { color: var(--gold-wordmark-light); }
 
 /* While a wish is being made, the heading steps aside for it */
 .moon-heading {
@@ -1845,6 +1847,7 @@ svg {
 .wish-send:focus-visible,
 .wish-close:focus-visible,
 .make-wish:focus-visible,
+.find-birth-moon:focus-visible,
 .birth-moon-open:focus-visible,
 .birth-moon-reveal:focus-visible {
   outline: 1px solid var(--gold-focus);
@@ -2505,6 +2508,7 @@ svg {
 .waitlist-thanks,
 .save-moon,
 .make-wish,
+.find-birth-moon,
 .start-again,
 .birth-moon-open,
 .copyright,

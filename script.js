@@ -2650,6 +2650,8 @@
   function enableAfter() {
     if (saveBtn) saveBtn.tabIndex = 0;
     if (wishBtn) wishBtn.tabIndex = 0;
+    const findMoon = form.querySelector(".find-birth-moon");
+    if (findMoon) findMoon.tabIndex = 0;
     if (startAgainBtn) startAgainBtn.tabIndex = 0;
   }
 
@@ -3178,7 +3180,7 @@
 
      The way in is a small gold moon lit as tonight's moon.
      They type the date in engraved gold numbers; the big moon
-     follows as they type. Reveal: a shooting star lands,
+     stays on tonight's moon so theirs is a surprise. Reveal: a shooting star lands,
      bursts into gold dust, the dust gathers into the dark
      moon, then sunlight sweeps across it to that night's
      phase. Everything glides; nothing jumps.
@@ -3386,7 +3388,7 @@
       };
     }
 
-    // Until a full date is typed, the big moon is tonight's moon (like the little one they tapped)
+    // Before the reveal the big moon is always tonight's moon (like the little one they tapped)
     const tonightE = elongation(new Date());
     const tonightText = `Tonight · ${PHASE_NAMES[phaseIndex(tonightE)]} · ${litPct(tonightE)}% lit`;
 
@@ -3403,9 +3405,7 @@
     function typedChanged() {
       bNote.textContent = NOTE;
       bNote.classList.remove("is-error");
-      const r = readingFor(typedValue());
-      if (r) { bLive.textContent = `${r.phase} · ${r.pct}% lit`; followE(r.E); }
-      else { bLive.textContent = tonightText; followE(tonightE); }
+      // the birth moon stays a secret until the reveal: tonight's moon until then
     }
     const order = [ty.d, ty.m, ty.y];
     order.forEach((inp, i) => {
@@ -3595,9 +3595,8 @@
       bWhen.textContent = "";
       bNote.textContent = NOTE;
       bNote.classList.remove("is-error");
-      const r = readingFor(typedValue());
-      bLive.textContent = r ? `${r.phase} · ${r.pct}% lit` : tonightText;
-      shownE = targetE = r ? r.E : tonightE;
+      bLive.textContent = tonightText;
+      shownE = targetE = tonightE;
       drawDisc(shownE);
     }
 
@@ -3654,6 +3653,9 @@
       if (e.key === "Escape" && !birthBox.hidden) closeBirth();
     });
     birthOpenBtn.addEventListener("click", openBirth);
+    // after joining, the birth moon is offered in words too
+    const findMoonBtn = document.querySelector(".find-birth-moon");
+    if (findMoonBtn) findMoonBtn.addEventListener("click", openBirth);
 
     bSave.addEventListener("click", () => {
       if (!current) return;
