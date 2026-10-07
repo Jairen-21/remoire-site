@@ -3386,6 +3386,10 @@
       };
     }
 
+    // Until a full date is typed, the big moon is tonight's moon (like the little one they tapped)
+    const tonightE = elongation(new Date());
+    const tonightText = `Tonight · ${PHASE_NAMES[phaseIndex(tonightE)]} · ${litPct(tonightE)}% lit`;
+
     // ---- The engraved numbers ----
     const typedValue = () => {
       const d = ty.d.value, m = ty.m.value, y = ty.y.value;
@@ -3401,7 +3405,7 @@
       bNote.classList.remove("is-error");
       const r = readingFor(typedValue());
       if (r) { bLive.textContent = `${r.phase} · ${r.pct}% lit`; followE(r.E); }
-      else bLive.textContent = "";
+      else { bLive.textContent = tonightText; followE(tonightE); }
     }
     const order = [ty.d, ty.m, ty.y];
     order.forEach((inp, i) => {
@@ -3592,8 +3596,8 @@
       bNote.textContent = NOTE;
       bNote.classList.remove("is-error");
       const r = readingFor(typedValue());
-      bLive.textContent = r ? `${r.phase} · ${r.pct}% lit` : "";
-      shownE = targetE = r ? r.E : 60;
+      bLive.textContent = r ? `${r.phase} · ${r.pct}% lit` : tonightText;
+      shownE = targetE = r ? r.E : tonightE;
       drawDisc(shownE);
     }
 
