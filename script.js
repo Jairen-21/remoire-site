@@ -2242,35 +2242,51 @@
     redrawPad();
   }
 
+  /* Silk ink: every pointer sample (coalesced events), a light
+     smoothing to take out hand tremor, curves through the midpoints,
+     and a line that thins as the pen moves faster and fills out as it
+     slows (or with pen pressure), like real ink from a quill. Each new
+     piece is drawn as it arrives, in one colour, so the pieces join
+     seamlessly; the glow is a CSS filter. Points are [x, y, width]. */
+  const INK = "#e7c380";
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+
+  function inkSegment(from, ctrl, to, w) {
+    padCtx.lineWidth = w;
+    padCtx.beginPath();
+    padCtx.moveTo(from[0], from[1]);
+    padCtx.quadraticCurveTo(ctrl[0], ctrl[1], to[0], to[1]);
+    padCtx.stroke();
+  }
+  // piece i: from the end of piece i-1 to the midpoint of points i and i+1, curving through point i
+  function inkPiece(st, i) {
+    inkSegment(i === 1 ? st[0] : mid(st[i - 1], st[i]), st[i], mid(st[i], st[i + 1]), st[i][2]);
+  }
+  function inkTail(st) {                                   // the last little run to where the pen lifted
+    const n = st.length;
+    if (n === 1) {
+      padCtx.beginPath();
+      padCtx.arc(st[0][0], st[0][1], (st[0][2] || 2) / 2, 0, Math.PI * 2);
+      padCtx.fill();
+      return;
+    }
+    const to = st[n - 1];
+    inkSegment(n === 2 ? st[0] : mid(st[n - 2], st[n - 1]), to, to, to[2]);
+  }
+  function inkStyle() {
+    padCtx.lineCap = "round";
+    padCtx.lineJoin = "round";
+    padCtx.strokeStyle = INK;
+    padCtx.fillStyle = INK;
+  }
+
   function redrawPad() {
     if (!padCtx) return;
     padCtx.clearRect(0, 0, padSize.w, padSize.h);
-    padCtx.lineCap = "round";
-    padCtx.lineJoin = "round";
-    padCtx.lineWidth = 2.2;
-    padCtx.strokeStyle = "#e7c380";
-    padCtx.shadowColor = "rgba(216, 169, 100, 0.6)";
-    padCtx.shadowBlur = 6;
-    for (const s of strokes) {
-      if (s.length < 2) {
-        if (s.length === 1) {
-          padCtx.beginPath();
-          padCtx.arc(s[0][0], s[0][1], 1.2, 0, Math.PI * 2);
-          padCtx.fillStyle = "#e7c380";
-          padCtx.fill();
-        }
-        continue;
-      }
-      padCtx.beginPath();
-      padCtx.moveTo(s[0][0], s[0][1]);
-      for (let i = 1; i < s.length - 1; i++) {
-        const mx = (s[i][0] + s[i + 1][0]) / 2;
-        const my = (s[i][1] + s[i + 1][1]) / 2;
-        padCtx.quadraticCurveTo(s[i][0], s[i][1], mx, my);
-      }
-      const last = s[s.length - 1];
-      padCtx.lineTo(last[0], last[1]);
-      padCtx.stroke();
+    inkStyle();
+    for (const st of strokes) {
+      for (let i = 1; i < st.length - 1; i++) inkPiece(st, i);
+      inkTail(st);
     }
   }
 
@@ -2296,33 +2312,97 @@
 
   if (pad) {
     let drawing = false;
+    let pen = null;                   // the smoothed pen: position, width, last time
     const at = (e) => {
       const r = pad.getBoundingClientRect();
       return [e.clientX - r.left, e.clientY - r.top];
     };
+    const widthFor = (speed, e) => {
+      let w = 2.6 - Math.min(1.7, speed * 1.2);                    // faster = finer
+      if (e.pointerType === "pen" && e.pressure > 0) w *= 0.5 + e.pressure;
+      return Math.max(0.9, Math.min(3.2, w));
+    };
+
+    // The quill: follows the hand, its tip where the ink comes out
+    const quill = document.createElement("div");
+    quill.className = "sign-quill";
+    quill.setAttribute("aria-hidden", "true");
+    quill.innerHTML = `<svg width="60" height="120" viewBox="0 0 60 120">
+      <defs><linearGradient id="quill-gold" x1="0" x2="1"><stop offset="0" stop-color="#6e5122"/><stop offset="0.4" stop-color="#fff0c8"/><stop offset="0.6" stop-color="#d6b066"/><stop offset="1" stop-color="#5a4018"/></linearGradient></defs>
+      <g transform="rotate(28 2 116)">
+        <path d="M2 116 L 6 96" stroke="url(#quill-gold)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M6 96 C 2 70, 4 40, 22 8 C 30 30, 30 60, 12 92 Z" fill="#efe3c6" opacity="0.94"/>
+        <path d="M6 96 C 2 70, 4 40, 22 8" fill="none" stroke="#b89a64" stroke-width="0.8"/>
+        <path d="M6 96 C 10 70, 14 40, 22 8" fill="none" stroke="#a37336" stroke-width="1"/>
+        ${[...Array(9)].map((_, i) => `<path d="M${8 + i * 1.5} ${88 - i * 9} q 8 -6 14 -14" stroke="rgba(160,130,80,0.5)" stroke-width="0.6" fill="none"/>`).join("")}
+      </g></svg>`;
+    document.body.appendChild(quill);
+    let quillHide = 0;
+    function placeQuill(e, down) {
+      if (mode !== "draw" || step !== "name") return;
+      clearTimeout(quillHide);
+      let x = e.clientX, y = e.clientY;
+      if (down && pen) { const r = pad.getBoundingClientRect(); x = r.left + pen.x; y = r.top + pen.y; }
+      quill.style.transform = `translate(${x}px, ${y}px)`;
+      quill.classList.add("is-shown");
+      quill.classList.toggle("is-up", !down);
+    }
+    const hideQuill = (ms) => { clearTimeout(quillHide); quillHide = setTimeout(() => quill.classList.remove("is-shown"), ms); };
+
     pad.addEventListener("pointerdown", (e) => {
       if (mode !== "draw" || step !== "name") return;
       e.preventDefault();
       pad.setPointerCapture(e.pointerId);
       drawing = true;
-      strokes.push([at(e)]);
+      const [x, y] = at(e);
+      pen = { x, y, w: widthFor(0.4, e), t: e.timeStamp };
+      strokes.push([[x, y, pen.w]]);
       form.classList.add("has-ink");
       status.textContent = "";
-      redrawPad();
+      inkStyle();
+      placeQuill(e, true);
     });
+
     pad.addEventListener("pointermove", (e) => {
-      if (!drawing) return;
-      const s = strokes[strokes.length - 1];
-      const p = at(e);
-      const q = s[s.length - 1];
-      if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 1.5) {
-        s.push(p);
-        redrawPad();
+      placeQuill(e, drawing);
+      if (!drawing || !pen) return;
+      const st = strokes[strokes.length - 1];
+      const samples = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+      for (const ev of (samples.length ? samples : [e])) {
+        const [rx, ry] = at(ev);
+        const dt = Math.max(1, ev.timeStamp - pen.t);
+        const speed = Math.hypot(rx - pen.x, ry - pen.y) / dt;  // px per ms
+        const follow = 0.45 + Math.min(0.35, speed * 0.3);       // close behind the hand, tremor smoothed out
+        const x = pen.x + (rx - pen.x) * follow, y = pen.y + (ry - pen.y) * follow;
+        pen.w += (widthFor(speed, ev) - pen.w) * 0.2;
+        pen.t = ev.timeStamp;
+        const last = st[st.length - 1];
+        pen.x = x; pen.y = y;
+        if (Math.hypot(x - last[0], y - last[1]) < 0.6) continue;
+        st.push([x, y, pen.w]);
+        if (st.length >= 3) inkPiece(st, st.length - 2);      // draw just the new piece
       }
+      placeQuill(e, true);
     });
-    const end = () => { drawing = false; };
+
+    const end = (e) => {
+      if (!drawing) return;
+      drawing = false;
+      const st = strokes[strokes.length - 1];
+      if (st && pen) {
+        const [rx, ry] = at(e), last = st[st.length - 1];      // land where the pen lifted
+        if (Math.hypot(rx - last[0], ry - last[1]) > 0.6) {
+          st.push([rx, ry, Math.max(0.9, pen.w * 0.75)]);
+          if (st.length >= 3) inkPiece(st, st.length - 2);
+        }
+        inkTail(st);
+      }
+      pen = null;
+      if (e.pointerType === "mouse") placeQuill(e, false); else hideQuill(500);
+    };
     pad.addEventListener("pointerup", end);
     pad.addEventListener("pointercancel", end);
+    pad.addEventListener("pointerleave", () => { if (!drawing) hideQuill(0); });
     window.addEventListener("resize", () => { if (mode === "draw") sizePad(); });
   }
 
@@ -2427,7 +2507,17 @@
       status.textContent = "Draw your signature, or choose Type";
       return;
     }
-    const lines = strokes.map((s) => s.slice());
+    // the bottle only needs the shape, not every sample: keep points ~2px apart
+    const lines = strokes.map((st) => {
+      const out = [[st[0][0], st[0][1]]];
+      for (const p of st) {
+        const q = out[out.length - 1];
+        if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 2) out.push([p[0], p[1]]);
+      }
+      const last = st[st.length - 1], q = out[out.length - 1];
+      if (st.length > 1 && (last[0] !== q[0] || last[1] !== q[1])) out.push([last[0], last[1]]);
+      return out;
+    });
     if (pad) {
       pad.classList.add("is-sinking");
       await new Promise((r) => setTimeout(r, reducedMotion.matches ? 400 : 1500));

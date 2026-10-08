@@ -1164,6 +1164,7 @@ svg {
 
 /* The pad takes the field's place while drawing */
 .sign-pad,
+.sign-glass,
 .sign-hint {
   position: absolute;
   left: 0;
@@ -1180,7 +1181,84 @@ svg {
   height: 100%;
   touch-action: none;      /* drawing must not scroll the page */
   cursor: crosshair;
+  /* the ink's faint glow, done by the GPU so drawing never has to redraw */
+  filter: drop-shadow(0 0 2px rgba(216, 169, 100, 0.45));
 }
+
+/* With a mouse or pen the quill is the pointer */
+@media (pointer: fine) {
+  .sign-pad { cursor: none; }
+}
+
+/* A pane of glass to sign on: the crater shows through, gently softened;
+   light catches its edges and a reflection drifts across now and then. */
+.sign-glass {
+  border-radius: 10px;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015) 38%, rgba(255,255,255,0.04) 62%, rgba(255,255,255,0.01));
+  -webkit-backdrop-filter: blur(3px) saturate(1.1) brightness(0.88);
+          backdrop-filter: blur(3px) saturate(1.1) brightness(0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.35),
+    inset 0 0 24px rgba(255, 255, 255, 0.05),
+    0 14px 32px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.sign-glass::before,
+.sign-glass::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.sign-glass::before {            /* a soft diagonal reflection */
+  inset: 0;
+  background: linear-gradient(112deg, transparent 0 22%, rgba(255,255,255,0.10) 30%, rgba(255,255,255,0.02) 38%, transparent 46%, transparent 70%, rgba(255,255,255,0.05) 76%, transparent 82%);
+}
+
+.sign-glass::after {             /* light sliding across the glass */
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 38%;
+  background: linear-gradient(105deg, transparent, rgba(255, 250, 235, 0.16) 45%, rgba(255, 250, 235, 0.05) 55%, transparent);
+  animation: glass-sheen 7s ease-in-out infinite;
+}
+
+@keyframes glass-sheen {
+  0%, 62% { left: -45%; }
+  100%    { left: 115%; }
+}
+
+/* The quill that follows the hand while signing */
+.sign-quill {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  will-change: transform;
+}
+
+.sign-quill.is-shown { opacity: 1; }
+
+.sign-quill svg {
+  display: block;
+  overflow: visible;
+  margin: -116px 0 0 -2px;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+  transition: transform 0.25s cubic-bezier(.2, .7, .2, 1);
+}
+
+.sign-quill.is-up svg { transform: translate(5px, -7px); }   /* lifted off the glass */
 
 .sign-hint {
   display: flex;
@@ -1202,7 +1280,13 @@ svg {
   transition: height 0.6s ease, border-color 0.6s ease;
 }
 
+.waitlist.is-draw .waitlist-field,
+.waitlist.is-draw .waitlist-field:focus-within {
+  border-bottom-color: transparent;     /* the glass is the box now */
+}
+
 .waitlist.is-draw .sign-pad,
+.waitlist.is-draw .sign-glass,
 .waitlist.is-draw .sign-hint {
   opacity: 1;
   visibility: visible;
@@ -2658,4 +2742,8 @@ svg {
   .birth-moon.has-result .birth-moon-actions {
     animation: none;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-glass::after { animation: none; }
 }
