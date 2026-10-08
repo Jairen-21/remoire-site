@@ -1418,7 +1418,7 @@
   /* =========================================
      THE ATOMISER
      Click the bottle: the cap floats up (as things do on the
-     moon), revealing a faceted gold atomiser. It gives one
+     moon), revealing a classic gold atomiser. It gives one
      spray of fine atomised mist, then the cap settles back on.
      One click, one spray; clicks during a spray are ignored.
      The cap is hidden on the page while it's drawn here.
@@ -1441,7 +1441,7 @@
     const CUT = 211;                         // where the cap ends and the neck begins
     const NECK = { x0: 306, x1: 598, cx: 452 };
     const LIFT = 175;                        // how far the cap floats up
-    const D = { fw: 150, fh: 30, ridges: 2, sw: 28, sh: 16, hw: 116, hh: 72, nx: 50, ny: 38 };
+    const D = { fw: 156, fh: 34, ridges: 3, sw: 30, sh: 20, hw: 108, hh: 76, nx: 47, ny: 44 };
     const T = { up: 850, hold: 150, spray: 450, linger: 1500, down: 900 };
 
     let W = 0, H = 0, dpr = 1;
@@ -1502,7 +1502,7 @@
       return { x: g.x + (NECK.cx - D.nx) * g.k, y: g.y + (headTop(dip) + D.ny) * g.k };
     }
 
-    // ---- the faceted atomiser on the open neck ----
+    // ---- the classic atomiser on the open neck ----
     function drawAtomiser(g, now) {
       const k = g.k, X = (u) => g.x + u * k, Y = (v) => g.y + v * k;
       const cx = X(NECK.cx), dip = press * 9, aTop = headTop(dip);
@@ -1518,27 +1518,11 @@
       cylinder(cx, Y(CUT - D.fh), D.fw * k, D.fh * k, 8 * k * D.fw / 156, D.ridges);
       cylinder(cx, Y(CUT - D.fh - D.sh + dip), D.sw * k, D.sh * k, 3 * k);
 
-      // an octagonal head: four visible faces lit differently, a faceted top
+      // the classic head: a polished gold cylinder with a fine line under its top
       const hw = D.hw * k, hh = D.hh * k, top = Y(aTop);
-      const edge = (deg) => cx + Math.sin(deg * Math.PI / 180) * hw / 2 / Math.cos(22.5 * Math.PI / 180);
-      const lights = [0.25, 0.95, 0.55, 0.15];
-      [-67.5, -22.5, 22.5, 67.5].forEach((f, i) => {
-        const x0 = edge(f - 22.5), x1 = edge(f + 22.5);
-        const lg = ctx.createLinearGradient(0, top, 0, top + hh);
-        lg.addColorStop(0, shade(Math.min(1, lights[i] + 0.1))); lg.addColorStop(1, shade(lights[i] * 0.8));
-        ctx.fillStyle = lg; ctx.fillRect(x0, top, x1 - x0 + 0.5, hh);
-      });
-      ctx.strokeStyle = "rgba(255,240,205,0.6)"; ctx.lineWidth = 1 * k;
-      [-45, 0, 45].forEach((deg) => { const x = edge(deg); ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + hh); ctx.stroke(); });
-      const ry = 10 * k, R = hw / 2 / Math.cos(22.5 * Math.PI / 180);
-      const pts = [...Array(8)].map((_, i) => { const a = (i * 45 + 22.5) * Math.PI / 180; return [cx + Math.sin(a) * R, top - Math.cos(a) * ry]; });
-      pts.forEach((p, i) => {
-        const q = pts[(i + 1) % 8];
-        ctx.fillStyle = shade([0.9, 0.7, 0.5, 0.35, 0.3, 0.45, 0.75, 1][i]);
-        ctx.beginPath(); ctx.moveTo(cx, top - ry * 0.1); ctx.lineTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.closePath(); ctx.fill();
-      });
-      ctx.strokeStyle = "rgba(255,244,214,0.7)"; ctx.lineWidth = 0.8 * k;
-      ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
+      cylinder(cx, top, hw, hh, 9 * k);
+      ctx.strokeStyle = "rgba(60,40,12,0.5)"; ctx.lineWidth = 1.2 * k;
+      ctx.beginPath(); ctx.ellipse(cx, top + 12 * k, hw / 2, 9 * k, 0, 0, Math.PI); ctx.stroke();
 
       const n = nozzle(g);
       ctx.fillStyle = "#1a1006";
